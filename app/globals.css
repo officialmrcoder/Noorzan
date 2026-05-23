@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 15, 23, 42;
+  --background-rgb: 248, 250, 252;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  overflow-x: hidden;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateY(100%) translateY(1rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Custom styles for ranges */
+input[type="range"]::-webkit-slider-thumb {
+  background: #4f46e5;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  background: #4f46e5;
+  border-radius: 9999px;
+  cursor: pointer;
+}
