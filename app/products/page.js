@@ -19,6 +19,8 @@ const ProductsPageContent = memo(() => {
   const [priceRange, setPriceRange] = useState(150); // Max default price filter
   const [sortBy, setSortBy] = useState('newest'); // newest, price-asc, price-desc
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+  const ProductsPageContent = memo(() => {
+    ProductsPageContent.displayName = 'ProductsPageContent';
 
   // Load category from URL query parameters (useful if user clicked category from homepage!)
   useEffect(() => {
