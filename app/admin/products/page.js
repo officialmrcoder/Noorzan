@@ -171,29 +171,126 @@ export default function AdminProducts() {
       )}
 
       {formOpen && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">{editingProduct ? "Edit" : "Add"} Bag</h2>
-            <form onSubmit={handleSave} className="space-y-4">
-              <input required placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded p-2" />
-              <input required type="number" placeholder="Price" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="w-full border rounded p-2" />
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full border rounded p-2">
-                <option value="backpack">Backpack</option>
-                <option value="messenger">Messenger</option>
-                <option value="laptop_bag">Laptop Bag</option>
-                <option value="travel_bag">Travel Bag</option>
-                <option value="handbag">Handbag</option>
-              </select>
-              <input placeholder="Image URL" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className="w-full border rounded p-2" />
-              <input type="number" placeholder="Stock" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="w-full border rounded p-2" />
-              <div className="flex justify-end space-x-2">
-                <button type="button" onClick={() => setFormOpen(false)} className="px-4 py-2 border rounded">Cancel</button>
-                <button type="submit" disabled={submitting} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center">
-                  {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Save
-                </button>
-              </div>
-            </form>
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setFormOpen(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+
+            {/* Header — always visible */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+              <h2 className="text-lg font-bold text-slate-800">
+                {editingProduct ? "✏️ Edit Bag" : "➕ Add New Bag"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setFormOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 transition text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable form body */}
+            <div className="overflow-y-auto px-6 py-5 space-y-4">
+              <form id="product-form" onSubmit={handleSave} className="space-y-4">
+
+                {/* Name */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Product Name</label>
+                  <input
+                    required
+                    placeholder="e.g. Leather Backpack"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Price + Stock side by side */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Price (PKR)</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="e.g. 2500"
+                      value={form.price}
+                      onChange={(e) => setForm({ ...form, price: e.target.value })}
+                      className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Stock</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="e.g. 10"
+                      value={form.stock}
+                      onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                      className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Category</label>
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+                  >
+                    <option value="backpack">Backpack</option>
+                    <option value="messenger">Messenger</option>
+                    <option value="laptop_bag">Laptop Bag</option>
+                    <option value="travel_bag">Travel Bag</option>
+                    <option value="handbag">Handbag</option>
+                  </select>
+                </div>
+
+                {/* Image URL */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Image URL</label>
+                  <input
+                    placeholder="https://..."
+                    value={form.image_url}
+                    onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                    className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+                  />
+                  {/* Image preview */}
+                  {form.image_url && (
+                    <div className="mt-2 w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
+                      <img src={form.image_url} alt="preview" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+                    </div>
+                  )}
+                </div>
+
+              </form>
+            </div>
+
+            {/* Footer — always visible at bottom */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => setFormOpen(false)}
+                className="px-5 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="product-form"
+                disabled={submitting}
+                className="px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 rounded-xl transition flex items-center gap-2"
+              >
+                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {submitting ? "Saving…" : editingProduct ? "Update Bag" : "Add Bag"}
+              </button>
+            </div>
+
           </div>
         </div>
       )}

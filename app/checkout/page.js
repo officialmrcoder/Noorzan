@@ -119,33 +119,21 @@ export default function CheckoutPage() {
       }
 
       // Real Supabase insertion
-      // 1. Ensure user profile exists or insert it
-      let activeUserId = null;
-      if (user) {
-        activeUserId = user.id;
-        // Verify profile exists in public.users
-        const { data: profileCheck } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle();
-        
-        if (!profileCheck) {
-          await supabase.from('users').insert({
-            id: user.id,
-            full_name: fullName,
-            email: email,
-            phone: phone,
-            is_admin: email.toLowerCase() === (process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@example.com').toLowerCase()
-          });
-        }
-      }
+      // The auth.users trigger creates this profile; don't grant checkout permission to create profiles.
+      const { data: profileCheck, error: profileError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+      if (!profileCheck) throw new Error('Your account profile is missing. Please sign out and sign in again.');
 
       // 2. Insert order
       const { data: orderResult, error: orderError } = await supabase
         .from('orders')
         .insert({
-          user_id: activeUserId,
+          user_id: user.id,
           order_number: orderNumber,
           total_amount: cartTotal,
           status: 'Pending',

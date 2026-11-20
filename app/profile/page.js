@@ -69,33 +69,37 @@ export default function ProfilePage() {
       }
 
       if (isSupabaseConfigured()) {
-        const { error } = await supabase
+        const { data: updatedProfile, error } = await supabase
           .from('users')
-          .upsert({
-            id: user.id,
+          .update({
             full_name: fullName,
             phone: phone || '',
             avatar_url: newAvatarUrl || null,
           })
-          .eq('id', user.id);
+          .eq('id', user.id)
+          .select('id')
+          .maybeSingle();
         
         // If avatar_url column doesn't exist, try without it
         if (error && error.message && error.message.includes('avatar_url')) {
           console.warn('avatar_url column not found. Please run the migration.');
-          const { error: retryError } = await supabase
+          const { data: retryProfile, error: retryError } = await supabase
             .from('users')
-            .upsert({
-              id: user.id,
+            .update({
               full_name: fullName,
               phone: phone || '',
             })
-            .eq('id', user.id);
+            .eq('id', user.id)
+            .select('id')
+            .maybeSingle();
           
           if (retryError) throw retryError;
+          if (!retryProfile) throw new Error('Profile not found. Please sign out and sign in again.');
           showToast('Profile updated! (Note: Photo feature needs migration)', 'info');
         } else if (error) {
           throw error;
         } else {
+          if (!updatedProfile) throw new Error('Profile not found. Please sign out and sign in again.');
           showToast('Profile updated successfully! ✓', 'success');
         }
       } else {
