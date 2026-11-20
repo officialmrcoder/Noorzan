@@ -6,10 +6,11 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
 import { SAMPLE_PRODUCTS, isSupabaseConfigured } from '@/lib/mockData';
+import { getCategories, createCategory, removeCategory } from '@/lib/categories';
 import {
   Plus, Edit2, Trash2, LayoutDashboard, ShoppingBag, FolderSync,
   DollarSign, Package, TrendingUp, X, Loader2, Save, ShoppingCart, UserCheck,
-  BarChart3, AlertTriangle, PackageX, Tag
+  BarChart3, AlertTriangle, PackageX, Tag, Layers, FolderPlus
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -18,13 +19,18 @@ export default function AdminDashboard() {
   const { showToast } = useToast();
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState('overview'); // overview, products
+  const [activeTab, setActiveTab] = useState('overview'); // overview, products, categories, analytics
 
   // Data State
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({ totalSales: 0, totalOrders: 0 });
   const [loadingData, setLoadingData] = useState(true);
+
+  // Category Manager State
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   // Form State (for Add/Edit Bag)
   const [editingProduct, setEditingProduct] = useState(null); // null if adding new
@@ -40,6 +46,11 @@ export default function AdminDashboard() {
   const [displayOrder, setDisplayOrder] = useState('0');
   const [submittingProduct, setSubmittingProduct] = useState(false);
   const [filterCategory, setFilterCategory] = useState('all');
+
+  // Inline Category Creator inside Bag Modal
+  const [showInlineCatInput, setShowInlineCatInput] = useState(false);
+  const [inlineCatName, setInlineCatName] = useState('');
+  const [creatingInlineCat, setCreatingInlineCat] = useState(false);
 
   // Guard routing
   useEffect(() => {
@@ -104,6 +115,8 @@ export default function AdminDashboard() {
           // Calculate stats
           const sales = mockOrders.reduce((sum, o) => sum + o.total_amount, 0);
           setStats({ totalSales: sales, totalOrders: mockOrders.length });
+          const loadedCats = await getCategories(SAMPLE_PRODUCTS);
+          setCategories(loadedCats);
           setLoadingData(false);
           return;
         }
@@ -115,7 +128,10 @@ export default function AdminDashboard() {
           .order('created_at', { ascending: false });
 
         if (prodErr) throw prodErr;
-        setProducts(prodData || []);
+        const currentProds = prodData || [];
+        setProducts(currentProds);
+        const loadedCats = await getCategories(currentProds);
+        setCategories(loadedCats);
 
         const { data: ordData, error: ordErr } = await supabase
           .from('orders')
@@ -190,8 +206,75 @@ export default function AdminDashboard() {
     };
   }, [isAdmin]);
 
+  // Category Actions
+  const handleCreateCategory = async (e) => {
+    if (e) e.preventDefault();
+    if (!newCategoryName.trim()) {
+      showToast('Please enter category name', 'error');
+      return;
+    }
+    setCreatingCategory(true);
+    try {
+      const created = await createCategory(newCategoryName);
+      const updated = await getCategories([...products, { category: created.slug }]);
+      setCategories(updated);
+      setNewCategoryName('');
+      showToast(`Category "${created.name}" created successfully!`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Failed to create category', 'error');
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
+
+  const handleCreateInlineCat = async () => {
+    if (!inlineCatName.trim()) {
+      showToast('Please enter category name', 'error');
+      return;
+    }
+    setCreatingInlineCat(true);
+    try {
+      const created = await createCategory(inlineCatName);
+      const updated = await getCategories([...products, { category: created.slug }]);
+      setCategories(updated);
+      setCategory(created.slug);
+      setInlineCatName('');
+      setShowInlineCatInput(false);
+      showToast(`Category "${created.name}" created!`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Failed to create category', 'error');
+    } finally {
+      setCreatingInlineCat(false);
+    }
+  };
+
+  const handleDeleteCategory = async (slug, name) => {
+    const associatedCount = products.filter((p) => p.category === slug).length;
+    if (associatedCount > 0) {
+      const proceed = confirm(`There are ${associatedCount} product(s) assigned to "${name}". Deleting this category won't delete the products, but they may need re-categorizing. Continue?`);
+      if (!proceed) return;
+    } else {
+      const proceed = confirm(`Are you sure you want to delete category "${name}"?`);
+      if (!proceed) return;
+    }
+
+    try {
+      await removeCategory(slug);
+      const updated = await getCategories(products.filter((p) => p.category !== slug));
+      setCategories(updated.filter((c) => c.slug !== slug));
+      showToast(`Category "${name}" deleted`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to delete category', 'error');
+    }
+  };
+
   // Open forms
   const handleOpenForm = (prod = null) => {
+    setShowInlineCatInput(false);
+    setInlineCatName('');
     if (prod) {
       setEditingProduct(prod);
       setName(prod.name);
@@ -208,7 +291,7 @@ export default function AdminDashboard() {
       setName('');
       setPrice('');
       setDescription('');
-      setCategory('backpack');
+      setCategory(categories[0]?.slug || 'backpack');
       setImageUrl('');
       setImageFile(null);
       setStock('10');
@@ -446,10 +529,10 @@ export default function AdminDashboard() {
 
       {/* Tabs Menu */}
       <div className="border-b border-gray-200">
-        <div className="flex gap-6">
+        <div className="flex gap-4 sm:gap-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`pb-3 font-semibold text-sm transition-all border-b-2 ${
+            className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'overview'
                 ? 'border-indigo-600 text-indigo-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -459,7 +542,7 @@ export default function AdminDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('products')}
-            className={`pb-3 font-semibold text-sm transition-all border-b-2 ${
+            className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'products'
                 ? 'border-indigo-600 text-indigo-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -468,8 +551,19 @@ export default function AdminDashboard() {
             Manage Inventories
           </button>
           <button
+            onClick={() => setActiveTab('categories')}
+            className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'categories'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            Categories ({categories.length})
+          </button>
+          <button
             onClick={() => setActiveTab('analytics')}
-            className={`pb-3 font-semibold text-sm transition-all border-b-2 ${
+            className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'analytics'
                 ? 'border-indigo-600 text-indigo-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -582,11 +676,9 @@ export default function AdminDashboard() {
               className="bg-slate-50 border border-gray-200 text-xs font-semibold px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
             >
               <option value="all">All Categories</option>
-              <option value="backpack">Backpacks</option>
-              <option value="messenger">Messenger Bags</option>
-              <option value="laptop_bag">Laptop Bags</option>
-              <option value="travel_bag">Travel Bags</option>
-              <option value="handbag">Women's Handbags</option>
+              {categories.map((c) => (
+                <option key={c.slug} value={c.slug}>{c.name}</option>
+              ))}
             </select>
           </div>
           
@@ -619,7 +711,9 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     </td>
-                    <td className="p-4 capitalize text-xs text-gray-400">{prod.category}</td>
+                    <td className="p-4 capitalize text-xs text-gray-400">
+                      {categories.find(c => c.slug === prod.category)?.name || prod.category}
+                    </td>
                     <td className="p-4 text-slate-900 font-bold">PKR ${Number(prod.price).toFixed(2)}</td>
                     <td className="p-4">
                       <span className={`text-xs ${prod.stock <= 5 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
@@ -648,17 +742,87 @@ export default function AdminDashboard() {
             </table>
           </div>
         </div>
+      ) : activeTab === 'categories' ? (
+        /* Categories Manager Tab */
+        <div className="space-y-6">
+          {/* Create Category Card */}
+          <div className="bg-white border border-gray-150 rounded-3xl p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+              <FolderPlus className="w-5 h-5 text-indigo-600" /> Add New Category
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">Create custom categories for your store. When you add a new bag, this category will be available in the dropdown.</p>
+            <form onSubmit={handleCreateCategory} className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                required
+                placeholder="e.g. Travel Duffel, School Bags, Office Clutches..."
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                className="flex-1 bg-slate-50 border border-gray-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
+              />
+              <button
+                type="submit"
+                disabled={creatingCategory || !newCategoryName.trim()}
+                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-indigo-600/10 flex items-center justify-center gap-2"
+              >
+                {creatingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Add Category
+              </button>
+            </form>
+          </div>
+
+          {/* Categories List */}
+          <div className="bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-sm">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Layers className="w-5 h-5 text-indigo-600" /> All Categories ({categories.length})
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-gray-100 text-xs font-semibold text-gray-450 uppercase">
+                    <th className="p-4">Category Name</th>
+                    <th className="p-4">Slug / Code</th>
+                    <th className="p-4">Products</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 font-semibold text-slate-700">
+                  {categories.map((cat) => {
+                    const count = products.filter((p) => p.category === cat.slug).length;
+                    return (
+                      <tr key={cat.slug} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4 font-bold text-slate-900 flex items-center gap-2">
+                          <Tag className="w-4 h-4 text-indigo-500" />
+                          {cat.name}
+                        </td>
+                        <td className="p-4 font-mono text-xs text-gray-500">{cat.slug}</td>
+                        <td className="p-4">
+                          <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold">
+                            {count} {count === 1 ? 'bag' : 'bags'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right">
+                          <button
+                            onClick={() => handleDeleteCategory(cat.slug, cat.name)}
+                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                            title="Delete category"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       ) : activeTab === 'analytics' ? (
         /* Analytics panel */
         (() => {
-          const categoryLabels = {
-            backpack: 'Backpacks',
-            messenger: 'Messenger Bags',
-            laptop_bag: 'Laptop Bags',
-            travel_bag: 'Travel Bags',
-            handbag: 'Handbags'
-          };
-
           const totalStock = products.reduce((sum, p) => sum + Number(p.stock), 0);
           const lowStockCount = products.filter((p) => Number(p.stock) <= 5 && Number(p.stock) > 0).length;
           const outOfStockCount = products.filter((p) => Number(p.stock) === 0).length;
@@ -666,14 +830,13 @@ export default function AdminDashboard() {
             ? (products.reduce((sum, p) => sum + Number(p.price), 0) / products.length)
             : 0;
 
-          const categoryKeys = Object.keys(categoryLabels);
-          const categoryStats = categoryKeys.map((key) => {
-            const catProducts = products.filter((p) => p.category === key);
+          const categoryStats = categories.map((cat) => {
+            const catProducts = products.filter((p) => p.category === cat.slug);
             const catStock = catProducts.reduce((sum, p) => sum + Number(p.stock), 0);
             const catRevenue = orders.reduce((sum, o) => sum + Number(o.total_amount), 0);
             return {
-              key,
-              label: categoryLabels[key],
+              key: cat.slug,
+              label: cat.name,
               totalProducts: catProducts.length,
               totalStock: catStock,
               totalRevenue: catRevenue
@@ -766,147 +929,202 @@ export default function AdminDashboard() {
 
       {/* Form Drawer Modal overlay */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm px-4">
-          <div className="bg-white border border-gray-150 rounded-3xl w-full max-w-lg shadow-2xl p-6 sm:p-8 animate-slide-in relative">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setIsFormOpen(false); }}
+        >
+          <div className="bg-white border border-gray-150 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
             
-            <button
-              onClick={() => setIsFormOpen(false)}
-              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-slate-700 rounded-lg"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {/* Header (always visible & shrink-0) */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+              <h3 className="text-lg font-bold text-slate-900">
+                {editingProduct ? '✏️ Edit Bag details' : '➕ Add New Bag'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsFormOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 transition text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
 
-            <h3 className="text-xl font-bold text-slate-900 border-b border-gray-50 pb-3 mb-5">
-              {editingProduct ? 'Edit Bag details' : 'Add New Bag'}
-            </h3>
-
-            <form onSubmit={handleSaveProduct} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Bag Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Leather Shoulder Tote"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            {/* Scrollable form body */}
+            <div className="overflow-y-auto px-6 py-5 space-y-4">
+              <form id="admin-product-form" onSubmit={handleSaveProduct} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Price ($)</label>
+                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Bag Name</label>
                   <input
-                    type="number"
-                    step="0.01"
+                    type="text"
                     required
-                    placeholder="e.g. 59.99"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
+                    placeholder="e.g. Leather Shoulder Tote"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Price ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      placeholder="e.g. 59.99"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Stock Qty</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="e.g. 15"
+                      value={stock}
+                      onChange={(e) => setStock(e.target.value)}
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Category Selection + Inline Creation */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Category</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowInlineCatInput(!showInlineCatInput)}
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition"
+                    >
+                      {showInlineCatInput ? 'Cancel' : '+ New Category'}
+                    </button>
+                  </div>
+
+                  {showInlineCatInput && (
+                    <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2">
+                      <span className="text-xs font-medium text-slate-700 block">Create new category:</span>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. Travel Duffel, Clutch..."
+                          value={inlineCatName}
+                          onChange={(e) => setInlineCatName(e.target.value)}
+                          className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleCreateInlineCat}
+                          disabled={creatingInlineCat || !inlineCatName.trim()}
+                          className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 disabled:bg-gray-300"
+                        >
+                          {creatingInlineCat ? 'Adding...' : 'Add'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
+                  >
+                    {categories.map((c) => (
+                      <option key={c.slug} value={c.slug}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Stock Qty</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="e.g. 15"
-                    value={stock}
-                    onChange={(e) => setStock(e.target.value)}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
-                  />
+                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Product Image</label>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setImageFile(e.target.files[0])}
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:outline-none file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                    />
+                    <div className="text-xs text-gray-400 text-center font-medium">OR</div>
+                    <input
+                      type="url"
+                      placeholder="Paste image URL here..."
+                      value={imageUrl}
+                      onChange={(e) => {
+                        setImageUrl(e.target.value);
+                        setImageFile(null);
+                      }}
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Category</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
-                >
-                  <option value="backpack">Backpack</option>
-                  <option value="messenger">Messenger Bag</option>
-                  <option value="laptop_bag">Laptop Bag</option>
-                  <option value="travel_bag">Travel Bag</option>
-                  <option value="handbag">Women's Handbag</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Product Image</label>
-                <div className="space-y-2">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setImageFile(e.target.files[0])}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:outline-none file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
-                  />
-                  <div className="text-xs text-gray-400 text-center font-medium">OR</div>
-                  <input
-                    type="url"
-                    placeholder="Paste image URL here..."
-                    value={imageUrl}
-                    onChange={(e) => {
-                      setImageUrl(e.target.value);
-                      setImageFile(null);
-                    }}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-slate-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isFeatured}
+                      onChange={(e) => setIsFeatured(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-600/20"
+                    />
+                    Feature on Home
+                  </label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sort Order (Top = 1)</label>
+                    <input
+                      type="number"
+                      value={displayOrder}
+                      onChange={(e) => setDisplayOrder(e.target.value)}
+                      placeholder="e.g. 1"
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2 px-4 text-sm focus:outline-none"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-slate-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={isFeatured}
-                    onChange={(e) => setIsFeatured(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-600/20"
-                  />
-                  Feature on Home
-                </label>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sort Order (Top = 1)</label>
-                  <input
-                    type="number"
-                    value={displayOrder}
-                    onChange={(e) => setDisplayOrder(e.target.value)}
-                    placeholder="e.g. 1"
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2 px-4 text-sm focus:outline-none"
-                  />
+                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</label>
+                  <textarea
+                    rows="3"
+                    placeholder="Brief features and specifications..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
+                  ></textarea>
                 </div>
-              </div>
+              </form>
+            </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</label>
-                <textarea
-                  rows="3"
-                  placeholder="Brief features and specifications..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
-                ></textarea>
-              </div>
-
+            {/* Footer (always visible at bottom & shrink-0) */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsFormOpen(false)}
+                className="px-5 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition"
+              >
+                Cancel
+              </button>
               <button
                 type="submit"
+                form="admin-product-form"
                 disabled={submittingProduct}
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-600/10 mt-3"
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2"
               >
                 {submittingProduct ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" /> Saving...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Saving...
                   </>
                 ) : (
                   <>
-                    <Save className="w-5 h-5" /> Save Product
+                    <Save className="w-4 h-4" /> Save Product
                   </>
                 )}
               </button>
-            </form>
+            </div>
+
           </div>
         </div>
       )}

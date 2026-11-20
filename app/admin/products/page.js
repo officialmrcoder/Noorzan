@@ -6,18 +6,23 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { SAMPLE_PRODUCTS, isSupabaseConfigured } from "@/lib/mockData";
-import { Loader2, Edit2, Trash2, Save } from "lucide-react";
+import { getCategories, createCategory } from "@/lib/categories";
+import { Loader2, Edit2, Trash2, Save, Plus } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminProducts() {
   const { user, isAdmin, loading } = useAuth();
   const { showToast } = useToast();
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [editingProduct, setEditingProduct] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState({ name: "", price: "", category: "backpack", image_url: "", stock: "1" });
   const [submitting, setSubmitting] = useState(false);
+  const [showNewCatInput, setShowNewCatInput] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [creatingCat, setCreatingCat] = useState(false);
 
   // Guard
   useEffect(() => {
@@ -26,25 +31,50 @@ export default function AdminProducts() {
     }
   }, [user, isAdmin, loading, showToast]);
 
-  // Load products
+  // Load products & categories
   useEffect(() => {
     async function load() {
+      let loadedProds = [];
       if (!isSupabaseConfigured()) {
-        setProducts(SAMPLE_PRODUCTS);
-        setLoadingData(false);
-        return;
-      }
-      const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false });
-      if (error) {
-        console.error(error);
-        showToast("Failed to load products", "error");
+        loadedProds = SAMPLE_PRODUCTS;
       } else {
-        setProducts(data || []);
+        const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false });
+        if (error) {
+          console.error(error);
+          showToast("Failed to load products", "error");
+        } else {
+          loadedProds = data || [];
+        }
       }
+      setProducts(loadedProds);
+      const loadedCats = await getCategories(loadedProds);
+      setCategories(loadedCats);
       setLoadingData(false);
     }
     load();
   }, []);
+
+  const handleCreateNewCategory = async () => {
+    if (!newCatName.trim()) {
+      showToast("Please enter category name", "error");
+      return;
+    }
+    setCreatingCat(true);
+    try {
+      const created = await createCategory(newCatName);
+      const updatedCats = await getCategories([...products, { category: created.slug }]);
+      setCategories(updatedCats);
+      setForm((prev) => ({ ...prev, category: created.slug }));
+      setNewCatName("");
+      setShowNewCatInput(false);
+      showToast(`Category "${created.name}" created!`, "success");
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Failed to create category", "error");
+    } finally {
+      setCreatingCat(false);
+    }
+  };
 
   const openForm = (product = null) => {
     if (product) {
@@ -237,17 +267,50 @@ export default function AdminProducts() {
 
                 {/* Category */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Category</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase">Category</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewCatInput(!showNewCatInput)}
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition"
+                    >
+                      {showNewCatInput ? "Cancel" : "+ New Category"}
+                    </button>
+                  </div>
+
+                  {showNewCatInput && (
+                    <div className="mb-2 p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2">
+                      <span className="text-xs font-medium text-slate-700 block">Create new category:</span>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. Travel Duffel, Office..."
+                          value={newCatName}
+                          onChange={(e) => setNewCatName(e.target.value)}
+                          className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleCreateNewCategory}
+                          disabled={creatingCat || !newCatName.trim()}
+                          className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 disabled:bg-gray-300"
+                        >
+                          {creatingCat ? "Adding..." : "Add"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <select
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
                     className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
                   >
-                    <option value="backpack">Backpack</option>
-                    <option value="messenger">Messenger</option>
-                    <option value="laptop_bag">Laptop Bag</option>
-                    <option value="travel_bag">Travel Bag</option>
-                    <option value="handbag">Handbag</option>
+                    {categories.map((c) => (
+                      <option key={c.slug} value={c.slug}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

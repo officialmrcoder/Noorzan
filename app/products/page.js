@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo, memo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { SAMPLE_PRODUCTS, isSupabaseConfigured } from '@/lib/mockData';
+import { getCategories } from '@/lib/categories';
 import ProductCard from '@/components/ProductCard';
 import { Search, SlidersHorizontal, RotateCcw, ChevronDown } from 'lucide-react';
 
@@ -12,6 +13,7 @@ const ProductsPageContent = memo(() => {
   const searchParams = useSearchParams();
 
   const [products, setProducts] = useState([]);
+  const [dynamicCategories, setDynamicCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -29,18 +31,17 @@ const ProductsPageContent = memo(() => {
   useEffect(() => {
     async function fetchProducts() {
       try {
+        let prods = [];
         if (!isSupabaseConfigured()) {
-          setProducts(SAMPLE_PRODUCTS);
-          setLoading(false);
-          return;
-        }
-        const { data, error } = await supabase.from('products').select('*');
-        if (error) throw error;
-        if (data && data.length > 0) {
-          setProducts(data);
+          prods = SAMPLE_PRODUCTS;
         } else {
-          setProducts(SAMPLE_PRODUCTS);
+          const { data, error } = await supabase.from('products').select('*');
+          if (error) throw error;
+          prods = (data && data.length > 0) ? data : SAMPLE_PRODUCTS;
         }
+        setProducts(prods);
+        const cats = await getCategories(prods);
+        setDynamicCategories(cats);
       } catch (err) {
         console.error("Error loading products from Supabase:", err);
         setProducts(SAMPLE_PRODUCTS);
@@ -68,11 +69,13 @@ const ProductsPageContent = memo(() => {
 
   const categories = [
     { name: 'All Bags', value: 'all' },
-    { name: 'Backpacks', value: 'backpack' },
-    { name: 'Messenger Bags', value: 'messenger' },
-    { name: 'Laptop Bags', value: 'laptop_bag' },
-    { name: 'Travel Bags', value: 'travel_bag' },
-    { name: 'Handbags', value: 'handbag' },
+    ...(dynamicCategories.length > 0 ? dynamicCategories.map(c => ({ name: c.name, value: c.slug })) : [
+      { name: 'Backpacks', value: 'backpack' },
+      { name: 'Messenger Bags', value: 'messenger' },
+      { name: 'Laptop Bags', value: 'laptop_bag' },
+      { name: 'Travel Bags', value: 'travel_bag' },
+      { name: 'Handbags', value: 'handbag' },
+    ])
   ];
 
   const handleResetFilters = () => {
