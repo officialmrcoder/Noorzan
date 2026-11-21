@@ -60,18 +60,31 @@ export const CartProvider = ({ children }) => {
 
   const removeFromCart = (productId, size) => {
     setCartItems((prevItems) =>
-      prevItems.filter((item) => !(item.id === productId && item.size === size))
+      prevItems.filter((item) => {
+        if (size !== undefined && size !== null) {
+          return !(item.id === productId && item.size === size);
+        }
+        return item.id !== productId;
+      })
     );
   };
 
   const updateQuantity = (productId, size, quantity) => {
-    if (quantity < 1 || quantity > 10) return;
+    let actualSize = size;
+    let actualQty = quantity;
+    // Support two argument call: updateQuantity(productId, newQty)
+    if (typeof size === 'number' && quantity === undefined) {
+      actualQty = size;
+      actualSize = null;
+    }
+    if (actualQty < 1 || actualQty > 10) return;
     setCartItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === productId && item.size === size
-          ? { ...item, quantity: Number(quantity) }
-          : item
-      )
+      prevItems.map((item) => {
+        const matches = actualSize !== null && actualSize !== undefined
+          ? (item.id === productId && item.size === actualSize)
+          : (item.id === productId);
+        return matches ? { ...item, quantity: Number(actualQty) } : item;
+      })
     );
   };
 

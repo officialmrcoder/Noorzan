@@ -3,31 +3,31 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/context/ToastContext';
-import { Mail, Phone, MapPin, Clock, Send, MessageCircle, AlertCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Clock, Send, MessageCircle } from 'lucide-react';
 
 const contactInfo = [
   {
     icon: Mail,
     label: 'Email',
-    value: 'support@baghaven.pk',
-    href: 'mailto:support@baghaven.pk',
+    value: 'officialnoorzan@gmail.com',
+    href: 'mailto:officialnoorzan@gmail.com',
   },
   {
     icon: Phone,
-    label: 'Phone',
-    value: '+92 300 1234567',
-    href: 'tel:+923001234567',
+    label: 'Phone / WhatsApp',
+    value: '+92 300 4123432',
+    href: 'tel:+923004123432',
   },
   {
     icon: MapPin,
-    label: 'Location',
-    value: 'Lahore, Pakistan',
+    label: 'Store Location',
+    value: '7-A Guldasht Town, Zarar Shaheed Road, Lahore, Pakistan',
     href: null,
   },
   {
     icon: Clock,
-    label: 'Business Hours',
-    value: 'Mon – Sat, 9 AM – 6 PM',
+    label: 'Support Hours',
+    value: 'Mon – Sat, 9:00 AM – 7:00 PM',
     href: null,
   },
 ];
@@ -55,159 +55,152 @@ export default function ContactPage() {
     }
 
     setSubmitting(true);
-
-    // Simulate a short delay
     setTimeout(() => {
-      showToast('Your message has been sent! We\'ll get back to you soon.', 'success');
+      showToast('Your message has been sent to Noorzan Customer Support!', 'success');
       setForm({ name: '', email: '', phone: '', message: '' });
       setSubmitting(false);
     }, 600);
   };
 
   return (
-    <div className="flex flex-col gap-16 pb-16">
-      {/* Page Header */}
-      <section className="relative bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 text-white overflow-hidden rounded-b-[2rem] sm:rounded-b-[3rem] shadow-2xl">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.1),transparent_60%)]"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-20 flex flex-col items-center text-center gap-4 z-10">
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1]">
-            Get in Touch
-          </h1>
-          <p className="text-lg text-indigo-100 max-w-xl text-balance">
-            Have a question, feedback, or just want to say hello? We'd love to hear from you.
+    <div className="bg-white min-h-screen">
+      {/* Header */}
+      <div className="border-b border-gray-200 py-12 bg-gray-50/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-gray-400">Customer Care</p>
+          <h1 className="text-3xl sm:text-4xl font-black text-black tracking-tight mt-1">Get in Touch</h1>
+          <p className="text-xs text-gray-500 max-w-md mx-auto mt-2 leading-relaxed">
+            Have questions regarding orders, replacements, or sizing? Our support team is ready to assist you.
           </p>
         </div>
-      </section>
+      </div>
 
       {/* Main Content */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
+          
           {/* Contact Form */}
-          <div className="lg:col-span-3 bg-white border border-gray-100 rounded-2xl p-6 md:p-8 shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900 mb-6">Send Us a Message</h2>
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className="space-y-1.5">
-                  <label htmlFor="name" className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                    Name <span className="text-rose-500">*</span>
+          <div className="lg:col-span-3 border border-gray-200 p-6 sm:p-8 space-y-6">
+            <h2 className="text-sm font-black uppercase tracking-widest text-black border-b border-gray-100 pb-3">
+              Send Us a Direct Message
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-black block mb-1">
+                    Your Name *
                   </label>
                   <input
                     id="name"
                     name="name"
                     type="text"
-                    placeholder="Your full name"
+                    required
+                    placeholder="e.g. Fatima Khan"
                     value={form.name}
                     onChange={handleChange}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label htmlFor="email" className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                    Email <span className="text-rose-500">*</span>
+                <div>
+                  <label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-black block mb-1">
+                    Email Address *
                   </label>
                   <input
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="you@example.com"
+                    required
+                    placeholder="name@example.com"
                     value={form.email}
                     onChange={handleChange}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                  Phone <span className="text-gray-300">(optional)</span>
+              <div>
+                <label htmlFor="phone" className="text-xs font-bold uppercase tracking-wider text-black block mb-1">
+                  Phone / WhatsApp (Optional)
                 </label>
                 <input
                   id="phone"
                   name="phone"
                   type="tel"
-                  placeholder="+92 3XX XXXXXXX"
+                  placeholder="0300-1234567"
                   value={form.phone}
                   onChange={handleChange}
-                  className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="message" className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                  Message <span className="text-rose-500">*</span>
+              <div>
+                <label htmlFor="message" className="text-xs font-bold uppercase tracking-wider text-black block mb-1">
+                  Your Message or Inquiry *
                 </label>
                 <textarea
                   id="message"
                   name="message"
                   rows={5}
-                  placeholder="How can we help you?"
+                  required
+                  placeholder="How can we help you today? Please mention your order number if applicable."
                   value={form.message}
                   onChange={handleChange}
-                  className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all resize-none"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors resize-none"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-lg shadow-indigo-600/25 hover:shadow-indigo-600/35 hover:-translate-y-0.5 disabled:opacity-60 disabled:pointer-events-none"
+                className="px-8 py-3.5 bg-black hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-widest transition-all inline-flex items-center gap-2"
               >
-                <Send className="w-4 h-4" />
-                {submitting ? 'Sending...' : 'Send Message'}
+                {submitting ? 'Sending...' : 'Submit Message'} <Send size={13} />
               </button>
             </form>
           </div>
 
-          {/* Contact Info */}
-          <div className="lg:col-span-2 space-y-4">
-            {contactInfo.map((item) => {
-              const Icon = item.icon;
-              const content = (
-                <div
-                  key={item.label}
-                  className="bg-white border border-gray-100 rounded-2xl p-6 flex items-start gap-4 hover:shadow-lg transition-all duration-300"
-                >
-                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-slate-800 text-sm">{item.label}</h3>
-                    <p className="text-gray-500 text-sm mt-0.5">{item.value}</p>
-                  </div>
-                </div>
-              );
+          {/* Contact Details Cards */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="border border-gray-200 p-6 sm:p-8 space-y-6 bg-gray-50/50">
+              <h2 className="text-sm font-black uppercase tracking-widest text-black border-b border-gray-200 pb-3">
+                Noorzan Headquarters
+              </h2>
 
-              if (item.href) {
-                return (
-                  <a key={item.label} href={item.href} className="block group">
-                    {content}
-                  </a>
-                );
-              }
+              <div className="space-y-4">
+                {contactInfo.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="flex items-start gap-3">
+                      <div className="p-2.5 bg-white border border-gray-200 text-black">
+                        <Icon size={16} />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+                          {item.label}
+                        </span>
+                        {item.href ? (
+                          <a href={item.href} className="text-xs font-bold text-black hover:underline mt-0.5 block">
+                            {item.value}
+                          </a>
+                        ) : (
+                          <p className="text-xs font-medium text-black mt-0.5 leading-relaxed">{item.value}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
-              return <React.Fragment key={item.label}>{content}</React.Fragment>;
-            })}
-
-            {/* Map / Extra CTA */}
-            <div className="bg-gradient-to-br from-indigo-900 to-indigo-950 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(99,102,241,0.15),transparent_60%)]"></div>
-              <div className="relative z-10 flex flex-col gap-3">
-                <h3 className="font-semibold text-lg">Visit Our Store</h3>
-                <p className="text-indigo-200 text-sm leading-relaxed">
-                  Drop by our showroom in Lahore to see and feel the quality of our bags in person. Walk-ins welcome during business hours.
-                </p>
-                <Link
-                  href="/products"
-                  className="inline-flex items-center text-sm font-semibold text-indigo-300 hover:text-white transition-colors mt-1"
-                >
-                  Browse Products →
-                </Link>
+              <div className="border-t border-gray-200 pt-4 text-xs text-gray-600 space-y-1">
+                <p className="font-bold text-black uppercase tracking-wider">Fast WhatsApp Support</p>
+                <p>Need urgent order status? Contact us directly on WhatsApp with your Order ID.</p>
               </div>
             </div>
           </div>
+
         </div>
-      </section>
+      </div>
     </div>
   );
 }

@@ -25,34 +25,34 @@ export const ToastProvider = ({ children }) => {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {/* Toast container */}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full">
+      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
         {toasts.map((toast) => {
-          let bgColor = 'bg-slate-900 text-white';
-          let icon = <Info className="w-5 h-5 text-indigo-400" />;
+          let icon = <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />;
+          let leftBorder = 'border-l-4 border-l-emerald-600';
 
-          if (toast.type === 'success') {
-            bgColor = 'bg-emerald-950 text-emerald-100 border border-emerald-500/30';
-            icon = <CheckCircle className="w-5 h-5 text-emerald-400" />;
-          } else if (toast.type === 'error') {
-            bgColor = 'bg-rose-950 text-rose-100 border border-rose-500/30';
-            icon = <AlertCircle className="w-5 h-5 text-rose-400" />;
+          if (toast.type === 'error') {
+            icon = <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />;
+            leftBorder = 'border-l-4 border-l-rose-600';
           } else if (toast.type === 'info') {
-            bgColor = 'bg-blue-950 text-blue-100 border border-blue-500/30';
-            icon = <Info className="w-5 h-5 text-blue-400" />;
+            icon = <Info className="w-5 h-5 text-black shrink-0" />;
+            leftBorder = 'border-l-4 border-l-black';
           }
 
           return (
             <div
               key={toast.id}
-              className={`flex items-center justify-between p-4 rounded-xl shadow-2xl backdrop-blur-md animate-slide-in ${bgColor}`}
+              className={`pointer-events-auto flex items-center justify-between p-4 bg-white text-black border border-gray-200 ${leftBorder} shadow-2xl transition-all duration-200 animate-slide-in`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0 pr-2">
                 {icon}
-                <span className="text-sm font-medium">{toast.message}</span>
+                <span className="text-xs font-bold text-black tracking-wide leading-snug">
+                  {toast.message}
+                </span>
               </div>
               <button
                 onClick={() => removeToast(toast.id)}
-                className="text-gray-400 hover:text-white transition-colors ml-4"
+                className="text-gray-400 hover:text-black transition-colors p-1 shrink-0"
+                aria-label="Close notification"
               >
                 <X className="w-4 h-4" />
               </button>

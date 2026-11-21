@@ -1,11 +1,11 @@
 'use client';
 
 import React, { memo } from 'react';
-// Export moved below after component definition
 import Link from 'next/link';
-import { ShoppingCart, Star, Eye } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/context/ToastContext';
+
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600';
 
 const ProductCard = ({ product }) => {
   const { addToCart } = useCart();
@@ -30,76 +30,60 @@ const ProductCard = ({ product }) => {
   };
 
   return (
-    <div className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full">
-      {/* Product Category Tag */}
-      <span className="absolute top-3 left-3 z-10 bg-white/90 backdrop-blur-md text-indigo-600 text-xs font-semibold px-3 py-1 rounded-full shadow-sm uppercase tracking-wider">
-        {getCategoryLabel(product.category)}
-      </span>
+    <div className="group relative bg-white flex flex-col">
 
-      {/* Image Wrapper */}
-      <div className="relative pt-[100%] overflow-hidden bg-gray-50">
+      {/* Image Container — 3:4 portrait ratio */}
+      <div className="relative overflow-hidden bg-gray-100" style={{ aspectRatio: '3/4' }}>
         <img
-          src={product.image_url || 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600'}
+          src={product.image_url || FALLBACK_IMAGE}
           alt={product.name}
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
         />
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-slate-900/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-2">
-          <Link
-            href={`/products/${product.id}`}
-            className="p-3 bg-white hover:bg-indigo-600 hover:text-white text-slate-800 rounded-full shadow-lg transition-all transform translate-y-4 group-hover:translate-y-0 duration-300"
-            title="View Details"
-          >
-            <Eye className="w-5 h-5" />
-          </Link>
+
+        {/* Badges top-left */}
+        <div className="absolute top-3 left-3 flex flex-col gap-1">
+          {product.stock <= 0 && (
+            <span className="bg-gray-800 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">
+              Sold Out
+            </span>
+          )}
+          {product.original_price && Number(product.original_price) > Number(product.price) && (
+            <span className="bg-black text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">
+              Sale
+            </span>
+          )}
+        </div>
+
+        {/* Hover overlay — Quick Add button */}
+        <div
+          className="absolute inset-x-0 bottom-0 bg-black text-white text-xs font-bold uppercase tracking-widest py-3 text-center translate-y-full group-hover:translate-y-0 transition-transform duration-300 cursor-pointer"
+          onClick={product.stock > 0 ? handleAddToCart : undefined}
+        >
+          {product.stock > 0 ? '+ Quick Add' : 'Sold Out'}
         </div>
       </div>
 
-      {/* Info Section */}
-      <div className="p-5 flex flex-col flex-grow">
-        {/* Rating Mock */}
-        <div className="flex items-center gap-1 mb-2">
-          {[...Array(5)].map((_, i) => (
-            <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-          ))}
-          <span className="text-xs text-gray-400 ml-1">(4.8)</span>
-        </div>
-
-        <Link href={`/products/${product.id}`} className="hover:text-indigo-600 transition-colors">
-          <h3 className="font-semibold text-gray-800 text-base leading-snug line-clamp-1 mb-1">
+      {/* Product Info */}
+      <div className="pt-3 pb-4">
+        <Link href={`/products/${product.id}`}>
+          <h3 className="text-sm font-semibold text-gray-900 leading-snug hover:underline line-clamp-2">
             {product.name}
           </h3>
         </Link>
-        
-        <p className="text-xs text-gray-400 line-clamp-2 mb-4 flex-grow">
-          {product.description || 'No description available for this premium bag.'}
-        </p>
-
-        <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-50">
-          <div>
-            <span className="text-xs text-gray-400 block uppercase tracking-wider font-medium">Price</span>
-            <span className="text-lg font-bold text-slate-900">PKR ${Number(product.price).toFixed(2)}</span>
-          </div>
-
-          <div className="flex gap-2">
-            <Link
-              href={`/products/${product.id}`}
-              className="inline-flex items-center justify-center px-3.5 py-1.5 border border-gray-200 text-xs font-semibold text-gray-600 hover:text-indigo-600 hover:border-indigo-600 rounded-xl transition-colors"
-            >
-              Details
-            </Link>
-            <button
-              onClick={handleAddToCart}
-              disabled={product.stock <= 0}
-              className="p-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white rounded-xl shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all"
-              title="Add to Cart"
-            >
-              <ShoppingCart className="w-4 h-4" />
-            </button>
-          </div>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-sm font-bold text-gray-900">
+            PKR {Number(product.price).toLocaleString()}
+          </span>
+          {product.original_price && Number(product.original_price) > Number(product.price) && (
+            <span className="text-xs text-gray-400 line-through">
+              PKR {Number(product.original_price).toLocaleString()}
+            </span>
+          )}
         </div>
+        <p className="text-xs text-gray-400 mt-0.5">{getCategoryLabel(product.category)}</p>
       </div>
     </div>
   );
-}
+};
+
 export default memo(ProductCard);

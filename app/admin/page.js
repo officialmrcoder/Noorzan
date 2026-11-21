@@ -10,7 +10,8 @@ import { getCategories, createCategory, removeCategory } from '@/lib/categories'
 import {
   Plus, Edit2, Trash2, LayoutDashboard, ShoppingBag, FolderSync,
   DollarSign, Package, TrendingUp, X, Loader2, Save, ShoppingCart, UserCheck,
-  BarChart3, AlertTriangle, PackageX, Tag, Layers, FolderPlus
+  BarChart3, AlertTriangle, PackageX, Tag, Layers, FolderPlus,
+  Share2, Globe, Phone, Mail, MapPin, Check
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -19,7 +20,45 @@ export default function AdminDashboard() {
   const { showToast } = useToast();
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState('overview'); // overview, products, categories, analytics
+  const [activeTab, setActiveTab] = useState('overview'); // overview, products, categories, analytics, social
+
+  // Social links state for Footer & Store Details
+  const [socialLinks, setSocialLinks] = useState({
+    instagram: 'https://instagram.com/noorzan.pk',
+    facebook: 'https://facebook.com/noorzan.pk',
+    tiktok: 'https://tiktok.com/@noorzan.pk',
+    whatsapp: '+923004123432',
+    youtube: 'https://youtube.com',
+    phone: '+92300-4123432',
+    email: 'officialnoorzan@gmail.com',
+    address: '7-A Guldasht Town, Zarar Shaheed Road, Lahore, Pakistan'
+  });
+  const [savingSocial, setSavingSocial] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('noorzan_social_links');
+      if (saved) {
+        setSocialLinks((prev) => ({ ...prev, ...JSON.parse(saved) }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const handleSaveSocialLinks = (e) => {
+    e.preventDefault();
+    setSavingSocial(true);
+    try {
+      localStorage.setItem('noorzan_social_links', JSON.stringify(socialLinks));
+      window.dispatchEvent(new Event('noorzan_social_updated'));
+      showToast('Social media links and store info updated successfully!', 'success');
+    } catch (err) {
+      showToast('Failed to save settings', 'error');
+    } finally {
+      setSavingSocial(false);
+    }
+  };
 
   // Data State
   const [products, setProducts] = useState([]);
@@ -534,7 +573,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab('overview')}
             className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'overview'
-                ? 'border-indigo-600 text-indigo-600'
+                ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -544,7 +583,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab('products')}
             className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'products'
-                ? 'border-indigo-600 text-indigo-600'
+                ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -554,7 +593,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab('categories')}
             className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${
               activeTab === 'categories'
-                ? 'border-indigo-600 text-indigo-600'
+                ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -565,11 +604,22 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab('analytics')}
             className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'analytics'
-                ? 'border-indigo-600 text-indigo-600'
+                ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('social')}
+            className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'social'
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Share2 className="w-4 h-4" />
+            Social Links & Footer
           </button>
         </div>
       </div>
@@ -925,6 +975,134 @@ export default function AdminDashboard() {
             </div>
           );
         })()
+      ) : activeTab === 'social' ? (
+        <div className="bg-white border border-gray-200 shadow-sm p-6 sm:p-8 max-w-3xl space-y-6">
+          <div>
+            <h2 className="text-xl font-black text-black tracking-tight flex items-center gap-2">
+              <Share2 className="w-5 h-5" /> Social Media Links & Store Contact Info
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Configure your brand's social media channels and customer contact details. Changes are updated live in the website footer.
+            </p>
+          </div>
+
+          <form onSubmit={handleSaveSocialLinks} className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 border-b border-gray-100 pb-2">
+                Social Profiles
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1">Instagram URL</label>
+                  <input
+                    type="url"
+                    value={socialLinks.instagram}
+                    onChange={(e) => setSocialLinks({ ...socialLinks, instagram: e.target.value })}
+                    placeholder="https://instagram.com/noorzan.pk"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1">Facebook URL</label>
+                  <input
+                    type="url"
+                    value={socialLinks.facebook}
+                    onChange={(e) => setSocialLinks({ ...socialLinks, facebook: e.target.value })}
+                    placeholder="https://facebook.com/noorzan.pk"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1">TikTok URL</label>
+                  <input
+                    type="url"
+                    value={socialLinks.tiktok}
+                    onChange={(e) => setSocialLinks({ ...socialLinks, tiktok: e.target.value })}
+                    placeholder="https://tiktok.com/@noorzan.pk"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1">WhatsApp (Number or Link)</label>
+                  <input
+                    type="text"
+                    value={socialLinks.whatsapp}
+                    onChange={(e) => setSocialLinks({ ...socialLinks, whatsapp: e.target.value })}
+                    placeholder="+923004123432"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1">YouTube URL</label>
+                  <input
+                    type="url"
+                    value={socialLinks.youtube}
+                    onChange={(e) => setSocialLinks({ ...socialLinks, youtube: e.target.value })}
+                    placeholder="https://youtube.com/@noorzan"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 border-b border-gray-100 pb-2">
+                Store Contact Information
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1">Official Phone Number</label>
+                  <input
+                    type="text"
+                    value={socialLinks.phone}
+                    onChange={(e) => setSocialLinks({ ...socialLinks, phone: e.target.value })}
+                    placeholder="+92300-4123432"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1">Support Email</label>
+                  <input
+                    type="email"
+                    value={socialLinks.email}
+                    onChange={(e) => setSocialLinks({ ...socialLinks, email: e.target.value })}
+                    placeholder="officialnoorzan@gmail.com"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-semibold text-gray-700 block mb-1">Physical Store Address</label>
+                  <input
+                    type="text"
+                    value={socialLinks.address}
+                    onChange={(e) => setSocialLinks({ ...socialLinks, address: e.target.value })}
+                    placeholder="7-A Guldasht Town, Zarar Shaheed Road, Lahore, Pakistan"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100 flex justify-end">
+              <button
+                type="submit"
+                disabled={savingSocial}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-black text-white hover:bg-gray-800 text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+              >
+                {savingSocial ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save Changes Live
+              </button>
+            </div>
+          </form>
+        </div>
       ) : null}
 
       {/* Form Drawer Modal overlay */}

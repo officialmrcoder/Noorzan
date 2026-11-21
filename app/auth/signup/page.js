@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { Mail, Lock, User, Phone, ArrowRight, Loader2, UserPlus } from 'lucide-react';
+import { Mail, Lock, User, Phone, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -37,117 +37,109 @@ export default function SignupPage() {
       showToast(error.message || 'Signup failed', 'error');
       setSubmitting(false);
     } else {
-      showToast('Registration successful! Please check your email or log in.', 'success');
+      showToast('Account registered successfully! Welcome to Noorzan.', 'success');
       setTimeout(() => {
-        router.push('/auth/login');
-      }, 1500);
+        router.push('/dashboard');
+      }, 1000);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto my-16 px-4">
-      <div className="bg-white border border-gray-100 p-8 rounded-3xl shadow-xl space-y-6">
+    <div className="bg-white min-h-[85vh] flex items-center justify-center py-16 px-4">
+      <div className="w-full max-w-md border border-gray-200 p-8 sm:p-10 space-y-6 shadow-sm">
         
         {/* Header */}
-        <div className="text-center">
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Create Account</h1>
-          <p className="text-sm text-gray-500 mt-1.5">Join BagHaven premium bag store</p>
+        <div className="text-center space-y-1">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-gray-400">Join Noorzan</p>
+          <h1 className="text-2xl font-black text-black tracking-tight">Create Account</h1>
+          <p className="text-xs text-gray-500">Sign up to enjoy express checkout & track your orders</p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           
           {/* Full Name */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Full Name</label>
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-black block">Full Name *</label>
             <div className="relative">
               <input
                 type="text"
                 required
-                placeholder="John Doe"
+                placeholder="Fatima Ali"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-slate-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
+                className="w-full border border-gray-300 py-3 pl-10 pr-4 text-xs font-medium text-black placeholder-gray-400 focus:outline-none focus:border-black transition-colors"
               />
-              <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <User size={15} className="text-gray-400 absolute left-3.5 top-3.5" />
             </div>
           </div>
 
           {/* Email */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Email Address</label>
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-black block">Email Address *</label>
             <div className="relative">
               <input
                 type="email"
                 required
-                placeholder="you@example.com"
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
+                className="w-full border border-gray-300 py-3 pl-10 pr-4 text-xs font-medium text-black placeholder-gray-400 focus:outline-none focus:border-black transition-colors"
               />
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <Mail size={15} className="text-gray-400 absolute left-3.5 top-3.5" />
             </div>
           </div>
 
           {/* Phone */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Phone Number</label>
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-black block">Phone Number (Optional)</label>
             <div className="relative">
               <input
                 type="tel"
-                placeholder="+92 300 1234567"
+                placeholder="0300-1234567"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full bg-slate-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
+                className="w-full border border-gray-300 py-3 pl-10 pr-4 text-xs font-medium text-black placeholder-gray-400 focus:outline-none focus:border-black transition-colors"
               />
-              <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <Phone size={15} className="text-gray-400 absolute left-3.5 top-3.5" />
             </div>
           </div>
 
           {/* Password */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Password</label>
+          <div className="space-y-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-black block">Password (6+ chars) *</label>
             <div className="relative">
               <input
                 type="password"
                 required
-                placeholder="Min 6 characters"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
+                className="w-full border border-gray-300 py-3 pl-10 pr-4 text-xs font-medium text-black placeholder-gray-400 focus:outline-none focus:border-black transition-colors"
               />
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <Lock size={15} className="text-gray-400 absolute left-3.5 top-3.5" />
             </div>
           </div>
 
-          {/* Submit */}
+          {/* Submit CTA */}
           <button
             type="submit"
             disabled={submitting}
-            className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/25 mt-2"
+            className="w-full py-4 bg-black hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 mt-2"
           >
-            {submitting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" /> Creating Account...
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-5 h-5" /> Sign Up
-              </>
-            )}
+            {submitting ? <Loader2 size={15} className="animate-spin" /> : null}
+            Register Account
           </button>
-
         </form>
 
         {/* Footer */}
-        <div className="text-center border-t border-gray-50 pt-6 text-sm text-gray-500">
-          Already have an account?{' '}
-          <Link
-            href="/auth/login"
-            className="font-semibold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-0.5 mt-1 hover:gap-1.5 transition-all"
-          >
-            Sign in instead <ArrowRight className="w-4 h-4" />
-          </Link>
+        <div className="text-center pt-4 border-t border-gray-100">
+          <p className="text-xs text-gray-500">
+            Already have an account?{' '}
+            <Link href="/auth/login" className="font-bold text-black hover:underline uppercase tracking-wider ml-1">
+              Sign In
+            </Link>
+          </p>
         </div>
 
       </div>
