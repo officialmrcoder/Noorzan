@@ -183,7 +183,7 @@ export default function UserDashboard() {
                 <ShoppingBag size={40} className="text-gray-300 mx-auto" />
                 <h3 className="text-sm font-bold uppercase tracking-wider text-black">No Orders Yet</h3>
                 <p className="text-xs text-gray-500 max-w-sm mx-auto">
-                  You have not placed any orders with Noorzan yet. Start exploring our latest handbag and backpack collection!
+                  You have not placed any orders with New Mughal Collections yet. Start exploring our latest watches, bags, and clothing collections!
                 </p>
                 <Link
                   href="/products"

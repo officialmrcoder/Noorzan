@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { useToast } from '@/context/ToastContext';
 
 export const DEFAULT_SOCIAL_LINKS = {
-  instagram: 'https://instagram.com/noorzan.pk',
-  facebook: 'https://facebook.com/noorzan.pk',
-  tiktok: 'https://tiktok.com/@noorzan.pk',
+  instagram: 'https://instagram.com/newmughalcollections',
+  facebook: 'https://facebook.com/newmughalcollections',
+  tiktok: 'https://tiktok.com/@newmughalcollections',
   whatsapp: '+923004123432',
   youtube: 'https://youtube.com',
   phone: '+92300-4123432',
-  email: 'officialnoorzan@gmail.com',
+  email: 'officialmughalcollections@gmail.com',
   address: '7-A Guldasht Town, Zarar Shaheed Road, Lahore, Pakistan'
 };
 
@@ -24,7 +24,7 @@ export default function Footer() {
   useEffect(() => {
     const loadLinks = () => {
       try {
-        const saved = localStorage.getItem('noorzan_social_links');
+        const saved = localStorage.getItem('mughal_social_links') || localStorage.getItem('noorzan_social_links');
         if (saved) {
           setLinks({ ...DEFAULT_SOCIAL_LINKS, ...JSON.parse(saved) });
         }
@@ -34,9 +34,11 @@ export default function Footer() {
     };
 
     loadLinks();
+    window.addEventListener('mughal_social_updated', loadLinks);
     window.addEventListener('noorzan_social_updated', loadLinks);
     window.addEventListener('storage', loadLinks);
     return () => {
+      window.removeEventListener('mughal_social_updated', loadLinks);
       window.removeEventListener('noorzan_social_updated', loadLinks);
       window.removeEventListener('storage', loadLinks);
     };
@@ -45,7 +47,7 @@ export default function Footer() {
   const handleNewsletter = (e) => {
     e.preventDefault();
     if (showToast) {
-      showToast('Thank you for subscribing to Noorzan VIP!', 'success');
+      showToast('Thank you for subscribing to New Mughal Collections VIP!', 'success');
     }
     setEmail('');
   };
@@ -59,7 +61,7 @@ export default function Footer() {
           <span className="text-xs font-bold tracking-[0.25em] text-gray-400 uppercase">Newsletter</span>
           <h2 className="text-2xl sm:text-3xl font-black tracking-widest uppercase">Be the First to Know</h2>
           <p className="text-sm text-gray-400 max-w-md">
-            Sign up for exclusive offers, new arrivals and insider-only discounts directly to your inbox.
+            Sign up for exclusive offers on watches, bags, clothing and new collection arrivals directly to your inbox.
           </p>
           <form onSubmit={handleNewsletter} className="flex flex-col sm:flex-row w-full max-w-md mt-2 gap-2 sm:gap-0">
             <input
@@ -86,10 +88,10 @@ export default function Footer() {
         {/* COL 1 — Brand */}
         <div className="flex flex-col gap-4">
           <Link href="/">
-            <span className="text-2xl font-black tracking-[0.2em]">NOORZAN</span>
+            <span className="text-xl sm:text-2xl font-black tracking-[0.18em] uppercase">NEW MUGHAL COLLECTIONS</span>
           </Link>
-          <p className="text-sm text-gray-400">
-            Premium Handbags & Lifestyle Accessories. Designed for the modern Pakistani woman.
+          <p className="text-sm text-gray-400 leading-relaxed">
+            Premium Watches, Handcrafted Bags, Designer Clothing & Lifestyle Accessories. Royal elegance tailored for your everyday journey.
           </p>
 
           {/* Social Icons */}
@@ -189,12 +191,12 @@ export default function Footer() {
           <h4 className="text-xs font-bold tracking-widest uppercase text-white mb-4">Shop Collections</h4>
           <ul className="flex flex-col gap-2.5">
             {[
-              { label: 'All Bags', href: '/products' },
-              { label: 'Backpacks', href: '/products?category=backpack' },
-              { label: 'Laptop Bags', href: '/products?category=laptop_bag' },
-              { label: 'Travel Bags', href: '/products?category=travel_bag' },
-              { label: 'Handbags', href: '/products?category=handbag' },
-              { label: 'Messenger Bags', href: '/products?category=messenger' },
+              { label: 'All Collections', href: '/products' },
+              { label: 'Watches', href: '/products?category=watches' },
+              { label: 'Bags & Luggage', href: '/products?category=bags' },
+              { label: 'Clothing & Apparel', href: '/products?category=clothing' },
+              { label: 'Backpacks & Laptop Bags', href: '/products?category=backpack' },
+              { label: 'Accessories', href: '/products?category=accessories' },
             ].map(({ label, href }) => (
               <li key={label}>
                 <Link href={href} className="text-sm text-gray-400 hover:text-white transition-colors">
@@ -230,7 +232,7 @@ export default function Footer() {
           <h4 className="text-xs font-bold tracking-widest uppercase text-white mb-4">Company</h4>
           <ul className="flex flex-col gap-2.5">
             {[
-              { label: 'About Noorzan', href: '/about' },
+              { label: 'About New Mughal Collections', href: '/about' },
               { label: 'Our Philosophy', href: '/about' },
               { label: 'Customer Reviews', href: '/' },
               { label: 'Privacy Policy', href: '/about' },
@@ -258,7 +260,7 @@ export default function Footer() {
       {/* Bottom bar */}
       <div className="border-t border-white/10 py-5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-gray-500">
-          <span>&copy; {new Date().getFullYear()} Noorzan Store. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} New Mughal Collections. All rights reserved.</span>
           <span>ALL-ENDED SOLUTIONS PVT LTD</span>
         </div>
       </div>

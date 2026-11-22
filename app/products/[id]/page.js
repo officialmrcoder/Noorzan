@@ -4,21 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { SAMPLE_PRODUCTS, isSupabaseConfigured } from '@/lib/mockData';
+import { formatCategoryName } from '@/lib/categories';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/context/ToastContext';
 import Link from 'next/link';
 
-const CATEGORY_LABELS = {
-  tote: 'Tote Bags',
-  shoulder: 'Shoulder Bags',
-  crossbody: 'Crossbody Bags',
-  clutch: 'Clutch Bags',
-  backpack: 'Backpacks',
-  handbag: 'Handbags',
-};
-
 function getCategoryLabel(cat) {
-  return CATEGORY_LABELS[cat] || (cat ? cat.charAt(0).toUpperCase() + cat.slice(1) : 'Bags');
+  return formatCategoryName(cat);
 }
 
 export default function ProductDetailPage() {
@@ -151,17 +143,17 @@ export default function ProductDetailPage() {
     {
       key: 'description',
       title: 'Description',
-      content: product.description || 'Premium quality bag crafted with high-grade materials for everyday use and style.',
+      content: product.description || 'Premium quality crafted with high-grade materials for timeless style, utility, and everyday elegance.',
     },
     {
       key: 'details',
-      title: 'Product Details',
-      content: 'Material: Premium Fabric\nDimensions: Standard Size\nHardware: Metal Zippers & Clasps\nInterior: Soft lining with multiple pockets',
+      title: 'Product Details & Specifications',
+      content: `Category: ${formatCategoryName(product.category)}\nAuthenticity: 100% Guaranteed\nFinishing: Premium Handcrafted Detail\nQuality Checked: Before Nationwide Dispatch`,
     },
     {
       key: 'care',
       title: 'Care & Maintenance',
-      content: 'Wipe clean with a dry cloth. Avoid prolonged exposure to direct sunlight. Store in a cool dry place.',
+      content: 'Wipe clean with a soft dry cloth. Avoid exposure to extreme heat or moisture. Store in the provided protective dust cover.',
     },
   ];
 
@@ -169,12 +161,16 @@ export default function ProductDetailPage() {
     <div className="bg-white min-h-screen">
       {/* Breadcrumb */}
       <div className="max-w-7xl mx-auto px-4 pt-6 pb-2">
-        <nav className="text-xs text-gray-400 flex items-center gap-1.5">
+        <nav className="text-xs text-gray-400 flex items-center gap-1.5 flex-wrap">
           <Link href="/" className="hover:text-black transition-colors">Home</Link>
           <span>/</span>
           <Link href="/products" className="hover:text-black transition-colors">Products</Link>
           <span>/</span>
-          <span className="text-black">{product.name}</span>
+          <Link href={`/products?category=${product.category}`} className="hover:text-black transition-colors font-medium text-gray-600">
+            {formatCategoryName(product.category)}
+          </Link>
+          <span>/</span>
+          <span className="text-black font-semibold truncate max-w-xs">{product.name}</span>
         </nav>
       </div>
 
@@ -214,10 +210,16 @@ export default function ProductDetailPage() {
 
         {/* RIGHT — Product Info */}
         <div>
-          {/* Category Tag */}
-          <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-2">
-            {getCategoryLabel(product.category)}
-          </p>
+          {/* Prominent Category Mention */}
+          <div className="mb-3 flex items-center gap-2">
+            <Link
+              href={`/products?category=${product.category}`}
+              className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-100 transition-colors"
+            >
+              <span>Category:</span>
+              <span className="underline">{formatCategoryName(product.category)}</span>
+            </Link>
+          </div>
 
           {/* Product Name */}
           <h1 className="text-3xl font-black text-black leading-tight mb-3">

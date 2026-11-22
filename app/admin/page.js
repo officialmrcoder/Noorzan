@@ -6,12 +6,18 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
 import { SAMPLE_PRODUCTS, isSupabaseConfigured } from '@/lib/mockData';
-import { getCategories, createCategory, removeCategory } from '@/lib/categories';
+import { getCategories, createCategory, removeCategory, formatCategoryName } from '@/lib/categories';
+import { getHeroBackground, setHeroBackground, DEFAULT_HERO_IMAGE } from '@/lib/settings';
+import {
+  fetchContactMessages, updateMessageReadStatus, deleteContactMessage,
+  getContactPageContent, saveContactPageContent, DEFAULT_CONTACT_CONTENT
+} from '@/lib/contact';
 import {
   Plus, Edit2, Trash2, LayoutDashboard, ShoppingBag, FolderSync,
   DollarSign, Package, TrendingUp, X, Loader2, Save, ShoppingCart, UserCheck,
   BarChart3, AlertTriangle, PackageX, Tag, Layers, FolderPlus,
-  Share2, Globe, Phone, Mail, MapPin, Check
+  Share2, Globe, Phone, Mail, MapPin, Check, Image as ImageIcon, Sparkles,
+  MessageSquare, Clock, Send, MessageCircle, Eye, CheckCircle2
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -20,24 +26,96 @@ export default function AdminDashboard() {
   const { showToast } = useToast();
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState('overview'); // overview, products, categories, analytics, social
+  const [activeTab, setActiveTab] = useState('overview'); // overview, products, hero, categories, contact, analytics, social
 
   // Social links state for Footer & Store Details
   const [socialLinks, setSocialLinks] = useState({
-    instagram: 'https://instagram.com/noorzan.pk',
-    facebook: 'https://facebook.com/noorzan.pk',
-    tiktok: 'https://tiktok.com/@noorzan.pk',
+    instagram: 'https://instagram.com/newmughalcollections',
+    facebook: 'https://facebook.com/newmughalcollections',
+    tiktok: 'https://tiktok.com/@newmughalcollections',
     whatsapp: '+923004123432',
     youtube: 'https://youtube.com',
     phone: '+92300-4123432',
-    email: 'officialnoorzan@gmail.com',
+    email: 'officialmughalcollections@gmail.com',
     address: '7-A Guldasht Town, Zarar Shaheed Road, Lahore, Pakistan'
   });
   const [savingSocial, setSavingSocial] = useState(false);
 
+  // Homepage Hero Background State
+  const [heroBgSettings, setHeroBgSettings] = useState({
+    imageUrl: DEFAULT_HERO_IMAGE,
+    title: 'New Mughal Collections',
+    subtitle: 'Exclusive watches, bags, apparel, and lifestyle accessories for all.',
+    productId: null
+  });
+  const [heroCustomUrl, setHeroCustomUrl] = useState('');
+  const [heroImageFile, setHeroImageFile] = useState(null);
+  const [savingHeroBg, setSavingHeroBg] = useState(false);
+
+  // Contact Module State (Customer Messages & Contact Page Content)
+  const [contactMessages, setContactMessages] = useState([]);
+  const [contactContent, setContactContent] = useState(DEFAULT_CONTACT_CONTENT);
+  const [savingContactContent, setSavingContactContent] = useState(false);
+  const [contactSubTab, setContactSubTab] = useState('messages'); // 'messages' | 'content'
+  const [messageFilter, setMessageFilter] = useState('all'); // 'all' | 'unread' | 'read'
+  const [selectedMessage, setSelectedMessage] = useState(null);
+
+  // Load hero background on mount
+  useEffect(() => {
+    async function loadHero() {
+      try {
+        const bg = await getHeroBackground();
+        if (bg && bg.imageUrl) {
+          setHeroBgSettings(bg);
+          setHeroCustomUrl(bg.imageUrl);
+        }
+      } catch (e) {
+        console.error('Failed to load hero background:', e);
+      }
+    }
+    loadHero();
+
+    const handleHeroUpdate = (e) => {
+      if (e?.detail) {
+        setHeroBgSettings((prev) => ({ ...prev, ...e.detail }));
+      }
+    };
+    window.addEventListener('mughal_hero_bg_updated', handleHeroUpdate);
+    return () => window.removeEventListener('mughal_hero_bg_updated', handleHeroUpdate);
+  }, []);
+
+  // Load Contact Data (messages & content)
+  useEffect(() => {
+    async function loadContactData() {
+      try {
+        const msgs = await fetchContactMessages();
+        setContactMessages(msgs || []);
+        const cContent = getContactPageContent();
+        setContactContent(cContent);
+      } catch (e) {
+        console.error('Failed to load contact data in admin:', e);
+      }
+    }
+    loadContactData();
+
+    const handleMessagesUpdate = (e) => {
+      if (e?.detail) setContactMessages(e.detail);
+    };
+    const handleContentUpdate = (e) => {
+      if (e?.detail) setContactContent(e.detail);
+    };
+
+    window.addEventListener('mughal_contact_messages_updated', handleMessagesUpdate);
+    window.addEventListener('mughal_contact_content_updated', handleContentUpdate);
+    return () => {
+      window.removeEventListener('mughal_contact_messages_updated', handleMessagesUpdate);
+      window.removeEventListener('mughal_contact_content_updated', handleContentUpdate);
+    };
+  }, []);
+
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('noorzan_social_links');
+      const saved = localStorage.getItem('mughal_social_links') || localStorage.getItem('noorzan_social_links');
       if (saved) {
         setSocialLinks((prev) => ({ ...prev, ...JSON.parse(saved) }));
       }
@@ -50,8 +128,8 @@ export default function AdminDashboard() {
     e.preventDefault();
     setSavingSocial(true);
     try {
-      localStorage.setItem('noorzan_social_links', JSON.stringify(socialLinks));
-      window.dispatchEvent(new Event('noorzan_social_updated'));
+      localStorage.setItem('mughal_social_links', JSON.stringify(socialLinks));
+      window.dispatchEvent(new Event('mughal_social_updated'));
       showToast('Social media links and store info updated successfully!', 'success');
     } catch (err) {
       showToast('Failed to save settings', 'error');
@@ -71,22 +149,23 @@ export default function AdminDashboard() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
 
-  // Form State (for Add/Edit Bag)
-  const [editingProduct, setEditingProduct] = useState(null); // null if adding new
+  // Form State (for Add/Edit Product)
+  const [editingProduct, setEditingProduct] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('backpack');
+  const [category, setCategory] = useState('watches');
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [stock, setStock] = useState('10');
   const [isFeatured, setIsFeatured] = useState(false);
+  const [isHeroBg, setIsHeroBg] = useState(false);
   const [displayOrder, setDisplayOrder] = useState('0');
   const [submittingProduct, setSubmittingProduct] = useState(false);
   const [filterCategory, setFilterCategory] = useState('all');
 
-  // Inline Category Creator inside Bag Modal
+  // Inline Category Creator inside Product Modal
   const [showInlineCatInput, setShowInlineCatInput] = useState(false);
   const [inlineCatName, setInlineCatName] = useState('');
   const [creatingInlineCat, setCreatingInlineCat] = useState(false);
@@ -99,6 +178,14 @@ export default function AdminDashboard() {
     }
   }, [user, isAdmin, loading, router]);
 
+  // Helper to calculate total revenue only from DELIVERED orders
+  const calculateDeliveredSales = (ordersList) => {
+    if (!Array.isArray(ordersList)) return 0;
+    return ordersList
+      .filter((o) => o.status === 'Delivered')
+      .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+  };
+
   // Load Admin Data
   useEffect(() => {
     if (!isAdmin) return;
@@ -107,156 +194,252 @@ export default function AdminDashboard() {
       try {
         setLoadingData(true);
         if (!isSupabaseConfigured()) {
-          // Mock mode data setup
+          // Clean slate: 0 sales, 0 orders
           setProducts(SAMPLE_PRODUCTS);
-          
-          const mockOrders = [
-            {
-              id: 'ord-m1',
-              order_number: 'BH-725492',
-              created_at: new Date(Date.now() - 3600000 * 2).toISOString(), // 2 hrs ago
-              total_amount: 149.97,
-              status: 'Pending',
-              shipping_address: 'Main Street 45, Sector F',
-              city: 'Islamabad',
-              phone: '+92 300 9876543',
-              payment_method: 'Cash on Delivery',
-              user_name: 'Haris Ahmed'
-            },
-            {
-              id: 'ord-m2',
-              order_number: 'BH-902184',
-              created_at: new Date(Date.now() - 3600000 * 24).toISOString(), // 1 day ago
-              total_amount: 89.99,
-              status: 'Confirmed',
-              shipping_address: 'DHA Phase 5, House 12',
-              city: 'Lahore',
-              phone: '+92 312 4567890',
-              payment_method: 'EasyPaisa/JazzCash',
-              user_name: 'Sara Khan'
-            },
-            {
-              id: 'ord-m3',
-              order_number: 'BH-550184',
-              created_at: new Date(Date.now() - 3600000 * 48).toISOString(), // 2 days ago
-              total_amount: 259.98,
-              status: 'Delivered',
-              shipping_address: 'Gulshan-e-Iqbal Block 3',
-              city: 'Karachi',
-              phone: '+92 321 2345678',
-              payment_method: 'Cash on Delivery',
-              user_name: 'Zainab Bibi'
-            }
-          ];
-          
-          setOrders(mockOrders);
+          setOrders([]);
+          setStats({
+            totalSales: 0,
+            totalOrders: 0
+          });
 
-          // Calculate stats
-          const sales = mockOrders.reduce((sum, o) => sum + o.total_amount, 0);
-          setStats({ totalSales: sales, totalOrders: mockOrders.length });
-          const loadedCats = await getCategories(SAMPLE_PRODUCTS);
-          setCategories(loadedCats);
+          const loadedCategories = await getCategories(SAMPLE_PRODUCTS);
+          setCategories(loadedCategories);
           setLoadingData(false);
           return;
         }
 
-        // Real Supabase queries
-        const { data: prodData, error: prodErr } = await supabase
-          .from('products')
-          .select('*')
-          .order('created_at', { ascending: false });
+        // Supabase configured - Fetch real data
+        const [prodRes, orderRes] = await Promise.all([
+          supabase
+            .from('products')
+            .select('*')
+            .order('is_featured', { ascending: false })
+            .order('display_order', { ascending: true })
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('orders')
+            .select(`
+              *,
+              items:order_items(
+                id,
+                quantity,
+                price,
+                product:products(id, name, price, category, image_url)
+              )
+            `)
+            .order('created_at', { ascending: false })
+        ]);
 
-        if (prodErr) throw prodErr;
-        const currentProds = prodData || [];
-        setProducts(currentProds);
-        const loadedCats = await getCategories(currentProds);
+        if (prodRes.error) throw prodRes.error;
+        if (orderRes.error) throw orderRes.error;
+
+        const fetchedProducts = prodRes.data || [];
+        setProducts(fetchedProducts);
+
+        const loadedCats = await getCategories(fetchedProducts);
         setCategories(loadedCats);
 
-        const { data: ordData, error: ordErr } = await supabase
-          .from('orders')
-          .select('*, users(full_name)')
-          .order('created_at', { ascending: false });
+        const fetchedOrders = orderRes.data || [];
+        setOrders(fetchedOrders);
 
-        if (ordErr) throw ordErr;
-
-        // Clean orders to include user name safely
-        const cleanedOrders = (ordData || []).map((o) => ({
-          ...o,
-          user_name: o.users?.full_name || 'Guest Checkout'
-        }));
-
-        // Fetch order items with product details for each order (if Supabase configured)
-        if (isSupabaseConfigured()) {
-          const ordersWithItems = await Promise.all(
-            cleanedOrders.map(async (order) => {
-              const { data: items, error: itemsErr } = await supabase
-                .from('order_items')
-                .select('product_id, quantity, price, products(image_url, name)')
-                .eq('order_id', order.id);
-              if (itemsErr) console.error('Failed to fetch items for order', order.id, itemsErr);
-              return { ...order, items: items || [] };
-            })
-          );
-          setOrders(ordersWithItems);
-        } else {
-          setOrders(cleanedOrders);
-        }
-
-        // Stats calculation
-        const totalSales = cleanedOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
-        setStats({ totalSales, totalOrders: cleanedOrders.length });
+        // Revenue is ONLY counted for orders marked Delivered
+        const totalSales = calculateDeliveredSales(fetchedOrders);
+        setStats({
+          totalSales,
+          totalOrders: fetchedOrders.length
+        });
 
       } catch (err) {
-        console.error("Failed to load admin panel data:", err);
-        showToast("Error loading statistics", "error");
+        console.error("Admin data loading failed:", err);
+        showToast("Error loading dashboard data. Using fallback.", "error");
+        setProducts(SAMPLE_PRODUCTS);
+        const fallbackCats = await getCategories(SAMPLE_PRODUCTS);
+        setCategories(fallbackCats);
       } finally {
         setLoadingData(false);
       }
     }
 
     loadAdminData();
-  }, [isAdmin]);
 
-  // Real‑time subscription: listen for new orders and notify admin
-  useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    const channel = supabase
-      .channel('public:orders')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
-        async (payload) => {
-          const newOrder = payload.new;
-          // Fetch associated order items with product details
-          const { data: items, error: itemsErr } = await supabase
-            .from('order_items')
-            .select('product_id, quantity, price, products(image_url, name)')
-            .eq('order_id', newOrder.id);
-          if (itemsErr) console.error('Failed to fetch order items:', itemsErr);
-          // Prepend the new order to state, attaching items for UI rendering
-          setOrders((prev) => [{ ...newOrder, items: items || [] }, ...prev]);
-          showToast(`New order ${newOrder.order_number} placed!`, 'success');
-        }
-      )
-      .subscribe();
+    // Setup realtime orders listener
+    if (isSupabaseConfigured()) {
+      const channel = supabase
+        .channel('admin-orders')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'orders' },
+          (payload) => {
+            showToast(`🔔 New Order received: #${payload.new.order_number}`, 'info');
+            loadAdminData();
+          }
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isAdmin]);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isAdmin, showToast]);
 
-  // Category Actions
+  // Handle setting product as Homepage Hero Background
+  const handleSetProductAsHero = async (prod) => {
+    try {
+      await setHeroBackground({
+        imageUrl: prod.image_url,
+        productId: prod.id,
+        title: prod.name,
+        subtitle: `Curated collection: ${formatCategoryName(prod.category)}`
+      });
+
+      setHeroBgSettings((prev) => ({
+        ...prev,
+        imageUrl: prod.image_url,
+        productId: prod.id,
+        title: prod.name
+      }));
+
+      // Update in products state
+      setProducts((prev) =>
+        prev.map((p) => ({
+          ...p,
+          is_hero_bg: p.id === prod.id
+        }))
+      );
+
+      showToast(`"${prod.name}" picture is now set as the Homepage Background!`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to set homepage background', 'error');
+    }
+  };
+
+  // Handle saving custom hero background
+  const handleSaveCustomHeroBg = async (e) => {
+    e.preventDefault();
+    setSavingHeroBg(true);
+
+    let finalUrl = heroCustomUrl;
+    try {
+      if (heroImageFile && isSupabaseConfigured()) {
+        const fileExt = heroImageFile.name.split('.').pop();
+        const fileName = `hero-${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('images')
+          .upload(fileName, heroImageFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('images')
+          .getPublicUrl(fileName);
+
+        finalUrl = publicUrlData.publicUrl;
+      }
+
+      if (!finalUrl || !finalUrl.trim()) {
+        showToast('Please provide an image URL or upload an image', 'error');
+        setSavingHeroBg(false);
+        return;
+      }
+
+      await setHeroBackground({
+        imageUrl: finalUrl,
+        title: 'New Mughal Collections',
+        subtitle: 'Exclusive watches, bags, apparel, and lifestyle accessories for all.'
+      });
+
+      setHeroBgSettings((prev) => ({
+        ...prev,
+        imageUrl: finalUrl,
+        productId: null
+      }));
+
+      setHeroImageFile(null);
+      showToast('Homepage background image updated successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Failed to update homepage background', 'error');
+    } finally {
+      setSavingHeroBg(false);
+    }
+  };
+
+  // Reset hero background to default
+  const handleResetHeroBg = async () => {
+    try {
+      await setHeroBackground({
+        imageUrl: DEFAULT_HERO_IMAGE,
+        title: 'New Mughal Collections',
+        subtitle: 'Exclusive watches, bags, apparel, and lifestyle accessories for all.'
+      });
+
+      setHeroBgSettings({
+        imageUrl: DEFAULT_HERO_IMAGE,
+        title: 'New Mughal Collections',
+        subtitle: 'Exclusive watches, bags, apparel, and lifestyle accessories for all.',
+        productId: null
+      });
+
+      setHeroCustomUrl(DEFAULT_HERO_IMAGE);
+      showToast('Homepage background reset to default.', 'info');
+    } catch (err) {
+      showToast('Failed to reset hero background', 'error');
+    }
+  };
+
+  // Handle Contact Message Actions
+  const handleToggleMessageRead = async (msg) => {
+    try {
+      const newStatus = !msg.is_read;
+      const updated = await updateMessageReadStatus(msg.id, newStatus);
+      setContactMessages(updated);
+      showToast(`Marked as ${newStatus ? 'read' : 'unread'}`, 'info');
+    } catch (err) {
+      showToast('Failed to update message status', 'error');
+    }
+  };
+
+  const handleDeleteMessage = async (id) => {
+    if (!confirm('Are you sure you want to delete this customer message?')) return;
+    try {
+      const updated = await deleteContactMessage(id);
+      setContactMessages(updated);
+      if (selectedMessage?.id === id) setSelectedMessage(null);
+      showToast('Message deleted', 'success');
+    } catch (err) {
+      showToast('Failed to delete message', 'error');
+    }
+  };
+
+  // Handle Saving Contact Page Content
+  const handleSaveContactContent = async (e) => {
+    e.preventDefault();
+    setSavingContactContent(true);
+    try {
+      await saveContactPageContent(contactContent);
+      showToast('Contact page content and store details updated successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save contact content', 'error');
+    } finally {
+      setSavingContactContent(false);
+    }
+  };
+
+  // Handle Category Creation
   const handleCreateCategory = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
     if (!newCategoryName.trim()) {
-      showToast('Please enter category name', 'error');
+      showToast('Please enter a category name', 'error');
       return;
     }
+
     setCreatingCategory(true);
     try {
       const created = await createCategory(newCategoryName);
-      const updated = await getCategories([...products, { category: created.slug }]);
-      setCategories(updated);
+      const updatedCats = await getCategories([...products, { category: created.slug }]);
+      setCategories(updatedCats);
       setNewCategoryName('');
       showToast(`Category "${created.name}" created successfully!`, 'success');
     } catch (err) {
@@ -267,20 +450,22 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleCreateInlineCat = async () => {
+  // Inline Category Creator inside Modal
+  const handleInlineCreateCategory = async () => {
     if (!inlineCatName.trim()) {
       showToast('Please enter category name', 'error');
       return;
     }
+
     setCreatingInlineCat(true);
     try {
       const created = await createCategory(inlineCatName);
-      const updated = await getCategories([...products, { category: created.slug }]);
-      setCategories(updated);
+      const updatedCats = await getCategories([...products, { category: created.slug }]);
+      setCategories(updatedCats);
       setCategory(created.slug);
       setInlineCatName('');
       setShowInlineCatInput(false);
-      showToast(`Category "${created.name}" created!`, 'success');
+      showToast(`Category "${created.name}" created & selected!`, 'success');
     } catch (err) {
       console.error(err);
       showToast(err.message || 'Failed to create category', 'error');
@@ -289,21 +474,23 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteCategory = async (slug, name) => {
-    const associatedCount = products.filter((p) => p.category === slug).length;
-    if (associatedCount > 0) {
-      const proceed = confirm(`There are ${associatedCount} product(s) assigned to "${name}". Deleting this category won't delete the products, but they may need re-categorizing. Continue?`);
-      if (!proceed) return;
-    } else {
-      const proceed = confirm(`Are you sure you want to delete category "${name}"?`);
-      if (!proceed) return;
+  // Handle Category Deletion
+  const handleDeleteCategory = async (slug, catName) => {
+    const isUsed = products.some((p) => p.category === slug);
+    if (isUsed) {
+      showToast(`Cannot delete "${catName}". Products currently use this category.`, 'error');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete category "${catName}"?`)) {
+      return;
     }
 
     try {
       await removeCategory(slug);
       const updated = await getCategories(products.filter((p) => p.category !== slug));
       setCategories(updated.filter((c) => c.slug !== slug));
-      showToast(`Category "${name}" deleted`, 'success');
+      showToast(`Category "${catName}" deleted`, 'success');
     } catch (err) {
       console.error(err);
       showToast('Failed to delete category', 'error');
@@ -319,22 +506,24 @@ export default function AdminDashboard() {
       setName(prod.name);
       setPrice(prod.price.toString());
       setDescription(prod.description || '');
-      setCategory(prod.category);
+      setCategory(prod.category || 'watches');
       setImageUrl(prod.image_url || '');
       setImageFile(null);
       setStock(prod.stock.toString());
       setIsFeatured(prod.is_featured || false);
+      setIsHeroBg(prod.is_hero_bg || heroBgSettings.imageUrl === prod.image_url || false);
       setDisplayOrder((prod.display_order || 0).toString());
     } else {
       setEditingProduct(null);
       setName('');
       setPrice('');
       setDescription('');
-      setCategory(categories[0]?.slug || 'backpack');
+      setCategory(categories[0]?.slug || 'watches');
       setImageUrl('');
       setImageFile(null);
       setStock('10');
       setIsFeatured(false);
+      setIsHeroBg(false);
       setDisplayOrder('0');
     }
     setIsFormOpen(true);
@@ -378,8 +567,11 @@ export default function AdminDashboard() {
         image_url: finalImageUrl || 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600',
         stock: Number(stock),
         is_featured: isFeatured,
+        is_hero_bg: isHeroBg,
         display_order: Number(displayOrder)
       };
+
+      let savedProductId = editingProduct?.id;
 
       if (!isSupabaseConfigured()) {
         // Mock Mode Update/Create
@@ -391,14 +583,31 @@ export default function AdminDashboard() {
           );
           showToast('Product updated (Mock)!', 'success');
         } else {
+          savedProductId = `prod-${Math.random().toString(36).substring(2, 9)}`;
           const newProduct = {
-            id: `prod-${Math.random().toString(36).substring(2, 9)}`,
+            id: savedProductId,
             ...productPayload,
             created_at: new Date().toISOString()
           };
           setProducts((prev) => [newProduct, ...prev]);
           showToast('Product created (Mock)!', 'success');
         }
+
+        // If flagged as hero background, update hero background
+        if (isHeroBg) {
+          await setHeroBackground({
+            imageUrl: productPayload.image_url,
+            productId: savedProductId,
+            title: productPayload.name
+          });
+          setHeroBgSettings((prev) => ({
+            ...prev,
+            imageUrl: productPayload.image_url,
+            productId: savedProductId,
+            title: productPayload.name
+          }));
+        }
+
         setIsFormOpen(false);
         setSubmittingProduct(false);
         return;
@@ -406,12 +615,23 @@ export default function AdminDashboard() {
 
       // Supabase Mode
       if (editingProduct) {
-        const { error } = await supabase
-          .from('products')
-          .update(productPayload)
-          .eq('id', editingProduct.id);
+        let updateError = null;
+        try {
+          const { error } = await supabase
+            .from('products')
+            .update(productPayload)
+            .eq('id', editingProduct.id);
+          updateError = error;
+        } catch (e) {
+          const { is_hero_bg, ...safePayload } = productPayload;
+          const { error } = await supabase
+            .from('products')
+            .update(safePayload)
+            .eq('id', editingProduct.id);
+          updateError = error;
+        }
 
-        if (error) throw error;
+        if (updateError) throw updateError;
         
         setProducts((prev) =>
           prev.map((p) =>
@@ -420,16 +640,44 @@ export default function AdminDashboard() {
         );
         showToast('Product updated successfully!', 'success');
       } else {
-        const { data, error } = await supabase
-          .from('products')
-          .insert([productPayload])
-          .select()
-          .single();
+        let insertedData = null;
+        try {
+          const { data, error } = await supabase
+            .from('products')
+            .insert([productPayload])
+            .select()
+            .single();
+          if (error) throw error;
+          insertedData = data;
+        } catch (e) {
+          const { is_hero_bg, ...safePayload } = productPayload;
+          const { data, error } = await supabase
+            .from('products')
+            .insert([safePayload])
+            .select()
+            .single();
+          if (error) throw error;
+          insertedData = data;
+        }
 
-        if (error) throw error;
-
-        setProducts((prev) => [data, ...prev]);
+        savedProductId = insertedData?.id;
+        setProducts((prev) => [insertedData, ...prev]);
         showToast('Product created successfully!', 'success');
+      }
+
+      // If flagged as hero background, update hero background
+      if (isHeroBg) {
+        await setHeroBackground({
+          imageUrl: productPayload.image_url,
+          productId: savedProductId,
+          title: productPayload.name
+        });
+        setHeroBgSettings((prev) => ({
+          ...prev,
+          imageUrl: productPayload.image_url,
+          productId: savedProductId,
+          title: productPayload.name
+        }));
       }
 
       setIsFormOpen(false);
@@ -467,14 +715,25 @@ export default function AdminDashboard() {
     }
   };
 
-  // Update order status
+  // Update order status (Revenue is added ONLY when status is set to Delivered)
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
+      const updatedOrders = orders.map((o) =>
+        o.id === orderId ? { ...o, status: newStatus } : o
+      );
+      setOrders(updatedOrders);
+      setStats({
+        totalSales: calculateDeliveredSales(updatedOrders),
+        totalOrders: updatedOrders.length
+      });
+
       if (!isSupabaseConfigured()) {
-        setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+        showToast(
+          newStatus === 'Delivered'
+            ? `Order marked Delivered! Revenue added to Total Sales.`
+            : `Order status updated to ${newStatus}.`,
+          'success'
         );
-        showToast(`Order status updated to ${newStatus} (Mock)!`, 'success');
         return;
       }
 
@@ -485,20 +744,30 @@ export default function AdminDashboard() {
 
       if (error) throw error;
 
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      showToast(
+        newStatus === 'Delivered'
+          ? `Order marked Delivered! Revenue added to Total Sales.`
+          : `Order status updated to ${newStatus}!`,
+        'success'
       );
-      showToast(`Order status updated to ${newStatus}!`, 'success');
     } catch (err) {
       console.error("Failed to update status:", err);
       showToast('Failed to update status', 'error');
     }
   };
 
+  const unreadMessagesCount = contactMessages.filter((m) => !m.is_read).length;
+
+  const filteredMessages = contactMessages.filter((m) => {
+    if (messageFilter === 'unread') return !m.is_read;
+    if (messageFilter === 'read') return m.is_read;
+    return true;
+  });
+
   if (loading || (!isAdmin && !loading)) {
     return (
       <div className="max-w-md mx-auto my-32 text-center space-y-4">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-655 mx-auto" />
+        <Loader2 className="w-8 h-8 animate-spin text-black mx-auto" />
         <p className="text-sm font-semibold text-gray-500">Checking credentials...</p>
       </div>
     );
@@ -510,42 +779,45 @@ export default function AdminDashboard() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <LayoutDashboard className="w-8 h-8 text-indigo-600" /> Admin Panel
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2.5 uppercase">
+            <LayoutDashboard className="w-8 h-8 text-black" /> New Mughal Collections Admin
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Manage inventories, track payments, and update order statuses</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Manage multi-collection catalog, homepage hero background, customer inquiries & contact page content.
+          </p>
         </div>
 
         {/* Create Product Button */}
         <button
           onClick={() => handleOpenForm(null)}
-          className="inline-flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20"
+          className="inline-flex items-center gap-2 px-5 py-3 bg-black hover:bg-gray-800 text-white font-bold rounded-2xl transition-all shadow-md shadow-black/10"
         >
-          <Plus className="w-4 h-4" /> Add New Bag
+          <Plus className="w-4 h-4" /> Add New Product
         </button>
       </div>
 
       {/* Stats row */}
       {loadingData ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 animate-pulse">
-          {[...Array(3)].map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 animate-pulse">
+          {[...Array(4)].map((_, i) => (
             <div key={i} className="bg-white p-6 rounded-2xl border border-gray-150 h-28"></div>
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-sm flex items-center gap-4">
             <div className="p-4 bg-indigo-50 text-indigo-600 rounded-xl">
               <DollarSign className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-xs text-gray-400 block uppercase font-medium">Total Sales</span>
-              <span className="text-2xl font-bold text-slate-800">${stats.totalSales.toFixed(2)}</span>
+              <span className="text-xs text-gray-400 block uppercase font-medium">Delivered Sales</span>
+              <span className="text-2xl font-bold text-slate-800">PKR {Number(stats.totalSales).toLocaleString()}</span>
+              <span className="text-[10px] text-gray-400 block mt-0.5">Added when order is Delivered</span>
             </div>
           </div>
 
           <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-sm flex items-center gap-4">
-            <div className="p-4 bg-violet-50 text-violet-650 rounded-xl">
+            <div className="p-4 bg-violet-50 text-violet-600 rounded-xl">
               <ShoppingCart className="w-6 h-6" />
             </div>
             <div>
@@ -554,13 +826,30 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-155 p-6 rounded-2xl shadow-sm flex items-center gap-4">
+          <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-sm flex items-center gap-4">
             <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl">
               <Package className="w-6 h-6" />
             </div>
             <div>
               <span className="text-xs text-gray-400 block uppercase font-medium">Products Count</span>
               <span className="text-2xl font-bold text-slate-800">{products.length}</span>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-sm flex items-center gap-4">
+            <div className="p-4 bg-rose-50 text-rose-600 rounded-xl">
+              <MessageSquare className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-xs text-gray-400 block uppercase font-medium">Inquiries</span>
+              <span className="text-2xl font-bold text-slate-800">
+                {contactMessages.length}
+                {unreadMessagesCount > 0 && (
+                  <span className="ml-2 text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
+                    {unreadMessagesCount} unread
+                  </span>
+                )}
+              </span>
             </div>
           </div>
         </div>
@@ -587,7 +876,36 @@ export default function AdminDashboard() {
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            Manage Inventories
+            Manage Products ({products.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('hero')}
+            className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'hero'
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <ImageIcon className="w-4 h-4 text-amber-500" />
+            Homepage Hero Background
+          </button>
+          <button
+            onClick={() => setActiveTab('contact')}
+            className={`pb-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'contact'
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Mail className="w-4 h-4 text-indigo-600" />
+            Contact & Inquiries
+            {unreadMessagesCount > 0 ? (
+              <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                {unreadMessagesCount}
+              </span>
+            ) : (
+              <span className="text-gray-400 text-xs">({contactMessages.length})</span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('categories')}
@@ -619,7 +937,7 @@ export default function AdminDashboard() {
             }`}
           >
             <Share2 className="w-4 h-4" />
-            Social Links & Footer
+            Social Links & Details
           </button>
         </div>
       </div>
@@ -633,81 +951,82 @@ export default function AdminDashboard() {
       ) : activeTab === 'overview' ? (
         /* Orders list */
         <div className="bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-sm">
-          <div className="p-6 border-b border-gray-100">
-            <h3 className="font-bold text-slate-800">Order Logs</h3>
+          <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800">Recent Customer Orders</h3>
+            <span className="text-xs bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-full">
+              {orders.length} orders
+            </span>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="bg-slate-50 border-b border-gray-100 text-xs font-semibold text-gray-450 uppercase">
-                  <th className="p-4">Order No</th>
-                  <th className="p-4">Customer</th>
-                  <th className="p-4">Total</th>
-                  <th className="p-4">Payment</th>
+                <tr className="bg-slate-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <th className="p-4">Order #</th>
+                  <th className="p-4">Customer Details</th>
+                  <th className="p-4">Items / Category</th>
+                  <th className="p-4">Amount</th>
                   <th className="p-4">Status</th>
-                  <th className="p-4">Items</th>
-                  <th className="p-4">Action</th>
+                  <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 font-semibold text-slate-700">
+              <tbody className="divide-y divide-gray-50 font-medium text-slate-600">
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="text-center p-8 text-gray-400">No orders logged.</td>
+                    <td colSpan="6" className="p-8 text-center text-gray-400">
+                      No orders placed yet.
+                    </td>
                   </tr>
                 ) : (
                   orders.map((order) => (
                     <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="p-4 font-bold text-slate-900">{order.order_number}</td>
                       <td className="p-4">
-                        <div className="space-y-0.5">
-                          <span>{order.user_name}</span>
-                          <span className="text-[10px] text-gray-400 block">{order.phone}</span>
+                        <div className="text-xs space-y-0.5">
+                          <p className="font-bold text-slate-800">{order.phone}</p>
+                          <p className="text-gray-400">{order.city} - {order.shipping_address}</p>
                         </div>
                       </td>
-                      <td className="p-4 text-indigo-650 font-bold">${Number(order.total_amount).toFixed(2)}</td>
-                      <td className="p-4 text-xs text-gray-500">{order.payment_method}</td>
                       <td className="p-4">
-                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                          order.status === 'Pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                          order.status === 'Confirmed' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                          order.status === 'Shipped' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                          'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                        <div className="text-xs space-y-1">
+                          {order.items?.map((it, idx) => (
+                            <div key={idx} className="flex items-center gap-1.5">
+                              <span className="font-bold text-black">{it.quantity}x</span>
+                              <span className="truncate max-w-[180px]">{it.product?.name || 'Product'}</span>
+                              {it.product?.category && (
+                                <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-bold uppercase">
+                                  {formatCategoryName(it.product.category)}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-4 font-bold text-slate-900">
+                        PKR {Number(order.total_amount).toLocaleString()}
+                      </td>
+                      <td className="p-4">
+                        <span className={`inline-block px-2.5 py-1 text-xs font-bold rounded-lg ${
+                          order.status === 'Delivered' ? 'bg-emerald-50 text-emerald-600' :
+                          order.status === 'Shipped' ? 'bg-blue-50 text-blue-600' :
+                          order.status === 'Confirmed' ? 'bg-indigo-50 text-indigo-600' :
+                          'bg-amber-50 text-amber-600'
                         }`}>
                           {order.status}
                         </span>
                       </td>
-                      <td className="p-4">
-                         {/* List of order items with thumbnail, name, qty, price */}
-                         {order.items && order.items.length > 0 ? (
-                           <div className="flex flex-col space-y-2">
-                             {order.items.map((item, idx) => (
-                               <div key={idx} className="flex items-center space-x-2">
-                                 {item.products?.image_url && (
-                                   <img src={item.products.image_url} alt={item.products.name} className="w-8 h-8 object-cover rounded" />
-                                 )}
-                                 <span className="text-sm font-medium">{item.products?.name || 'Product'}</span>
-                                 <span className="text-xs text-gray-500">x{item.quantity}</span>
-                                 <span className="text-xs text-gray-600">${item.price.toFixed(2)}</span>
-                               </div>
-                             ))}
-                           </div>
-                         ) : (
-                           <span className="text-gray-400 text-sm">No items</span>
-                         )}
-                       </td>
-                       <td className="p-4">
-                         <select
-                           value={order.status}
-                           onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                           className="bg-white border border-gray-250 text-xs font-semibold px-2 py-1.5 rounded-lg focus:outline-none focus:border-indigo-600"
-                         >
-                           <option value="Pending">Pending</option>
-                           <option value="Confirmed">Confirmed</option>
-                           <option value="Shipped">Shipped</option>
-                           <option value="Delivered">Delivered</option>
-                         </select>
-                       </td>
+                      <td className="p-4 text-right">
+                        <select
+                          value={order.status}
+                          onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+                          className="bg-slate-50 border border-gray-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg focus:outline-none"
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Confirmed">Confirmed</option>
+                          <option value="Shipped">Shipped</option>
+                          <option value="Delivered">Delivered</option>
+                        </select>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -716,10 +1035,13 @@ export default function AdminDashboard() {
           </div>
         </div>
       ) : activeTab === 'products' ? (
-        /* Products manager */
+        /* Products list */
         <div className="bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-sm">
           <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h3 className="font-bold text-slate-800">Bags inventory</h3>
+            <div>
+              <h3 className="font-bold text-slate-800">All Collections Inventory</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Every product has its category clearly mentioned and can be featured on Homepage.</p>
+            </div>
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
@@ -735,85 +1057,629 @@ export default function AdminDashboard() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="bg-slate-50 border-b border-gray-100 text-xs font-semibold text-gray-450 uppercase">
-                  <th className="p-4">Bag Details</th>
+                <tr className="bg-slate-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <th className="p-4">Product Details</th>
                   <th className="p-4">Category</th>
                   <th className="p-4">Price</th>
                   <th className="p-4">Stock</th>
+                  <th className="p-4">Hero / Featured</th>
                   <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 font-semibold text-slate-700">
                 {products
                   .filter(prod => filterCategory === 'all' || prod.category === filterCategory)
-                  .map((prod) => (
-                  <tr key={prod.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 relative border border-gray-100 bg-gray-50">
-                          <img src={prod.image_url} alt={prod.name} className="w-full h-full object-cover" />
-                        </div>
-                        <div>
-                          <span className="font-bold text-slate-900 line-clamp-1 flex items-center gap-1.5">
-                            {prod.name}
-                            {prod.is_featured && <span className="text-amber-500" title={`Featured (Order: ${prod.display_order})`}>⭐</span>}
+                  .map((prod) => {
+                    const isCurrentHero = heroBgSettings.imageUrl === prod.image_url;
+                    return (
+                      <tr key={prod.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 relative border border-gray-100 bg-gray-50">
+                              <img src={prod.image_url} alt={prod.name} className="w-full h-full object-cover" />
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-900 line-clamp-1">
+                                {prod.name}
+                              </span>
+                              <span className="text-[11px] text-gray-400 block">ID: {prod.id}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Explicit Category Column */}
+                        <td className="p-4">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-150 text-indigo-700 rounded-md text-xs font-bold uppercase tracking-wider">
+                            <Tag size={11} />
+                            {formatCategoryName(prod.category)}
                           </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 capitalize text-xs text-gray-400">
-                      {categories.find(c => c.slug === prod.category)?.name || prod.category}
-                    </td>
-                    <td className="p-4 text-slate-900 font-bold">PKR ${Number(prod.price).toFixed(2)}</td>
-                    <td className="p-4">
-                      <span className={`text-xs ${prod.stock <= 5 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
-                        {prod.stock} left
-                      </span>
-                    </td>
-                    <td className="p-4 text-right space-x-1.5">
-                      <button
-                        onClick={() => handleOpenForm(prod)}
-                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                        title="Edit product"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProduct(prod.id)}
-                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-                        title="Delete product"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        </td>
+
+                        <td className="p-4 text-slate-900 font-bold">
+                          PKR {Number(prod.price).toLocaleString()}
+                        </td>
+
+                        <td className="p-4">
+                          <span className={`text-xs ${prod.stock <= 5 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+                            {prod.stock} in stock
+                          </span>
+                        </td>
+
+                        <td className="p-4">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {prod.is_featured && (
+                              <span className="text-[10px] bg-amber-50 border border-amber-200 text-amber-800 font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                                ⭐ Featured
+                              </span>
+                            )}
+                            {isCurrentHero && (
+                              <span className="text-[10px] bg-green-50 border border-green-200 text-green-800 font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+                                🖼️ Active Home Bg
+                              </span>
+                            )}
+                            {!prod.is_featured && !isCurrentHero && (
+                              <span className="text-xs text-gray-400 font-normal">Standard</span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                          {/* Quick 1-click set as Home Background */}
+                          <button
+                            onClick={() => handleSetProductAsHero(prod)}
+                            className={`p-2 rounded-xl transition-all ${
+                              isCurrentHero
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'text-gray-500 hover:bg-amber-50 hover:text-amber-600'
+                            }`}
+                            title={isCurrentHero ? 'Active Homepage Background' : 'Set as Homepage Background Picture'}
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenForm(prod)}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                            title="Edit product"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(prod.id)}
+                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                            title="Delete product"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
         </div>
+      ) : activeTab === 'hero' ? (
+        /* HOMEPAGE HERO BACKGROUND MANAGEMENT TAB */
+        <div className="bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-sm p-6 sm:p-8 space-y-8">
+          <div className="border-b border-gray-100 pb-5">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-xl text-slate-900 uppercase tracking-tight">Homepage Background Picture Feature</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Choose which picture appears as the main full-screen hero banner on the New Mughal Collections homepage.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Current Live Preview */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                Live Homepage Background Preview
+              </label>
+              <span className="text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                Currently Live on Store
+              </span>
+            </div>
+
+            <div className="relative rounded-2xl overflow-hidden aspect-[21/9] sm:aspect-[3/1] bg-black border border-gray-300 shadow-md">
+              <img
+                src={heroBgSettings.imageUrl}
+                alt="Active Hero Background"
+                className="w-full h-full object-cover opacity-80"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col items-center justify-center text-center p-6">
+                <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-amber-300 border border-amber-300/40 px-3 py-1 mb-2 bg-black/60 backdrop-blur-sm">
+                  NEW MUGHAL COLLECTIONS
+                </span>
+                <h4 className="text-white text-2xl sm:text-4xl font-black">
+                  {heroBgSettings.title || 'Elegance in Every Collection'}
+                </h4>
+                <p className="text-gray-300 text-xs sm:text-sm mt-1 max-w-lg">
+                  {heroBgSettings.subtitle || 'Watches, Bags, Clothing & Lifestyle Accessories'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Form: Set custom URL or upload image */}
+          <form onSubmit={handleSaveCustomHeroBg} className="space-y-4 bg-slate-50 border border-gray-200 rounded-2xl p-5 sm:p-6">
+            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Set Custom Image for Homepage</h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Paste Image URL</label>
+                <input
+                  type="url"
+                  placeholder="https://images.unsplash.com/..."
+                  value={heroCustomUrl}
+                  onChange={(e) => setHeroCustomUrl(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Or Upload Image File</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setHeroImageFile(e.target.files[0])}
+                  className="w-full bg-white border border-gray-300 rounded-xl py-2 px-3 text-sm focus:outline-none file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-black file:text-white hover:file:bg-gray-800"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={savingHeroBg}
+                className="px-6 py-2.5 bg-black hover:bg-gray-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition flex items-center gap-2 shadow"
+              >
+                {savingHeroBg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Apply as Homepage Background
+              </button>
+              <button
+                type="button"
+                onClick={handleResetHeroBg}
+                className="px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold uppercase tracking-wider rounded-xl transition"
+              >
+                Reset to Default Image
+              </button>
+            </div>
+          </form>
+
+          {/* Pick from existing products */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Select Picture from Your Products
+                </h4>
+                <p className="text-xs text-gray-500">
+                  Click on any product card below to instantly set its picture as the Homepage hero background.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {products.map((p) => {
+                const isActive = heroBgSettings.imageUrl === p.image_url;
+                return (
+                  <div
+                    key={p.id}
+                    className={`relative border-2 rounded-xl overflow-hidden group bg-white transition-all flex flex-col justify-between ${
+                      isActive ? 'border-amber-500 ring-2 ring-amber-500/30' : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="aspect-square bg-gray-100 overflow-hidden relative">
+                      <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      {isActive && (
+                        <div className="absolute top-1.5 right-1.5 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 uppercase tracking-wider rounded">
+                          Active
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2 space-y-1.5">
+                      <p className="text-xs font-bold text-slate-800 truncate" title={p.name}>{p.name}</p>
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded block truncate">
+                        {formatCategoryName(p.category)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleSetProductAsHero(p)}
+                        className={`w-full py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-colors ${
+                          isActive
+                            ? 'bg-amber-100 text-amber-800 cursor-default'
+                            : 'bg-black text-white hover:bg-gray-800'
+                        }`}
+                      >
+                        {isActive ? 'Current Hero' : 'Set as Hero'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'contact' ? (
+        /* CONTACT MODULE: INBOX & CONTENT EDITOR */
+        <div className="bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-sm p-6 sm:p-8 space-y-8">
+          
+          {/* Header & Sub-tab switcher */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
+            <div>
+              <h3 className="font-black text-xl text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                <Mail className="w-6 h-6 text-indigo-600" />
+                Contact Module & Inquiries
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                View messages submitted by visitors on the Contact page, or customize the contact page details.
+              </p>
+            </div>
+
+            {/* Sub-tabs Toggle */}
+            <div className="flex p-1 bg-gray-100 rounded-xl">
+              <button
+                onClick={() => setContactSubTab('messages')}
+                className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
+                  contactSubTab === 'messages'
+                    ? 'bg-white text-black shadow-sm'
+                    : 'text-gray-500 hover:text-black'
+                }`}
+              >
+                Customer Messages ({contactMessages.length})
+                {unreadMessagesCount > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px]">
+                    {unreadMessagesCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setContactSubTab('content')}
+                className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
+                  contactSubTab === 'content'
+                    ? 'bg-white text-black shadow-sm'
+                    : 'text-gray-500 hover:text-black'
+                }`}
+              >
+                Edit Contact Page Content
+              </button>
+            </div>
+          </div>
+
+          {contactSubTab === 'messages' ? (
+            /* SUB-TAB 1: CUSTOMER MESSAGES INBOX */
+            <div className="space-y-6">
+              {/* Filter Strip */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 uppercase font-semibold">Filter:</span>
+                  <div className="flex gap-1.5">
+                    {['all', 'unread', 'read'].map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setMessageFilter(f)}
+                        className={`px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${
+                          messageFilter === f
+                            ? 'bg-black text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {f === 'all' ? `All (${contactMessages.length})` : f === 'unread' ? `Unread (${unreadMessagesCount})` : 'Read'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <span className="text-xs text-gray-500">
+                  Showing {filteredMessages.length} inquiry {filteredMessages.length === 1 ? '' : 'ies'}
+                </span>
+              </div>
+
+              {filteredMessages.length === 0 ? (
+                <div className="text-center py-16 border border-gray-100 rounded-2xl bg-gray-50/50 space-y-2">
+                  <Mail className="w-10 h-10 text-gray-300 mx-auto" />
+                  <p className="text-sm font-bold text-gray-600">No customer inquiries found</p>
+                  <p className="text-xs text-gray-400">When visitors send a message on the Contact page, it will appear here.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-gray-150 rounded-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-gray-150 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        <th className="p-4">Sender Info</th>
+                        <th className="p-4">Customer Contact</th>
+                        <th className="p-4">Inquiry / Message</th>
+                        <th className="p-4">Received</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4 text-right">Quick Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium text-slate-700">
+                      {filteredMessages.map((msg) => {
+                        const cleanPhone = msg.phone ? msg.phone.replace(/[^0-9]/g, '') : '';
+                        return (
+                          <tr
+                            key={msg.id}
+                            className={`transition-colors ${
+                              !msg.is_read ? 'bg-amber-50/30 hover:bg-amber-50/60' : 'hover:bg-slate-50/60'
+                            }`}
+                          >
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold uppercase shrink-0">
+                                  {msg.name ? msg.name.charAt(0) : 'U'}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-900 block leading-tight">{msg.name}</span>
+                                  {!msg.is_read && (
+                                    <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wide">
+                                      New
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="p-4 text-xs space-y-1">
+                              <div>
+                                <a
+                                  href={`mailto:${msg.email}`}
+                                  className="text-indigo-600 hover:underline font-semibold block"
+                                  title="Send Email Reply"
+                                >
+                                  {msg.email}
+                                </a>
+                              </div>
+                              {msg.phone && (
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    href={`tel:${msg.phone}`}
+                                    className="text-gray-700 hover:text-black font-medium"
+                                  >
+                                    {msg.phone}
+                                  </a>
+                                  {cleanPhone && (
+                                    <a
+                                      href={`https://wa.me/${cleanPhone.startsWith('0') ? '92' + cleanPhone.substring(1) : cleanPhone}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-emerald-600 hover:text-emerald-700 font-bold text-[11px] underline"
+                                      title="Chat on WhatsApp"
+                                    >
+                                      WhatsApp
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="p-4 max-w-xs">
+                              <p
+                                onClick={() => setSelectedMessage(msg)}
+                                className="text-xs text-slate-800 line-clamp-2 cursor-pointer hover:text-indigo-600 transition-colors"
+                                title="Click to read full message"
+                              >
+                                {msg.message}
+                              </p>
+                            </td>
+
+                            <td className="p-4 text-xs text-gray-400 whitespace-nowrap">
+                              {new Date(msg.created_at).toLocaleDateString('en-PK', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </td>
+
+                            <td className="p-4">
+                              <button
+                                onClick={() => handleToggleMessageRead(msg)}
+                                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                  msg.is_read
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+                                }`}
+                                title="Click to toggle Read/Unread"
+                              >
+                                {msg.is_read ? '✓ Read' : '● Unread'}
+                              </button>
+                            </td>
+
+                            <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                              {/* View Full Message */}
+                              <button
+                                onClick={() => setSelectedMessage(msg)}
+                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="View Full Message"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+
+                              {/* Toggle Read */}
+                              <button
+                                onClick={() => handleToggleMessageRead(msg)}
+                                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                title={msg.is_read ? "Mark as Unread" : "Mark as Read"}
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+
+                              {/* Delete */}
+                              <button
+                                onClick={() => handleDeleteMessage(msg.id)}
+                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Delete Message"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* SUB-TAB 2: EDIT CONTACT PAGE CONTENT (Similar to Footer settings) */
+            <div className="space-y-6">
+              <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 sm:p-6">
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">
+                  Customize Contact Page Headlines & Details
+                </h4>
+                <p className="text-xs text-gray-500 mb-6">
+                  Changes made here update the public Contact page (<span className="font-mono text-black">/contact</span>) in real-time.
+                </p>
+
+                <form onSubmit={handleSaveContactContent} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Page Tagline</label>
+                      <input
+                        type="text"
+                        value={contactContent.tagline}
+                        onChange={(e) => setContactContent({ ...contactContent, tagline: e.target.value })}
+                        placeholder="e.g. Customer Care"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Main Heading</label>
+                      <input
+                        type="text"
+                        value={contactContent.heading}
+                        onChange={(e) => setContactContent({ ...contactContent, heading: e.target.value })}
+                        placeholder="e.g. Get in Touch"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Subheading / Description</label>
+                      <textarea
+                        rows={2}
+                        value={contactContent.subheading}
+                        onChange={(e) => setContactContent({ ...contactContent, subheading: e.target.value })}
+                        placeholder="Brief message explaining response time or guidance..."
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Official Support Email</label>
+                      <input
+                        type="email"
+                        value={contactContent.email}
+                        onChange={(e) => setContactContent({ ...contactContent, email: e.target.value })}
+                        placeholder="officialmughalcollections@gmail.com"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Support Phone / WhatsApp</label>
+                      <input
+                        type="text"
+                        value={contactContent.phone}
+                        onChange={(e) => setContactContent({ ...contactContent, phone: e.target.value })}
+                        placeholder="+92 300 4123432"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Headquarters Card Title</label>
+                      <input
+                        type="text"
+                        value={contactContent.headquartersTitle}
+                        onChange={(e) => setContactContent({ ...contactContent, headquartersTitle: e.target.value })}
+                        placeholder="e.g. New Mughal Collections Headquarters"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Working / Support Hours</label>
+                      <input
+                        type="text"
+                        value={contactContent.hours}
+                        onChange={(e) => setContactContent({ ...contactContent, hours: e.target.value })}
+                        placeholder="Mon – Sat, 9:00 AM – 7:00 PM"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">Store Location Address</label>
+                      <input
+                        type="text"
+                        value={contactContent.address}
+                        onChange={(e) => setContactContent({ ...contactContent, address: e.target.value })}
+                        placeholder="7-A Guldasht Town, Zarar Shaheed Road, Lahore, Pakistan"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold text-slate-600 uppercase mb-1 block">WhatsApp Assistance Note</label>
+                      <input
+                        type="text"
+                        value={contactContent.whatsappNote}
+                        onChange={(e) => setContactContent({ ...contactContent, whatsappNote: e.target.value })}
+                        placeholder="Need urgent order status? Contact us directly on WhatsApp..."
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={savingContactContent}
+                      className="px-6 py-2.5 bg-black hover:bg-gray-800 disabled:bg-gray-400 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition flex items-center gap-2 shadow"
+                    >
+                      {savingContactContent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      Save Contact Page Content
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
       ) : activeTab === 'categories' ? (
         /* Categories Manager Tab */
-        <div className="space-y-6">
-          {/* Create Category Card */}
-          <div className="bg-white border border-gray-150 rounded-3xl p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
-              <FolderPlus className="w-5 h-5 text-indigo-600" /> Add New Category
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white border border-gray-150 rounded-3xl p-6 shadow-sm h-fit space-y-4">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <FolderPlus className="w-5 h-5 text-indigo-600" />
+              Add New Category
             </h3>
-            <p className="text-xs text-gray-500 mb-4">Create custom categories for your store. When you add a new bag, this category will be available in the dropdown.</p>
-            <form onSubmit={handleCreateCategory} className="flex flex-col sm:flex-row gap-3">
+            <p className="text-xs text-gray-500">
+              Create categories for watches, bags, clothing, accessories, or any new product line.
+            </p>
+            <form onSubmit={handleCreateCategory} className="space-y-3">
               <input
                 type="text"
-                required
-                placeholder="e.g. Travel Duffel, School Bags, Office Clutches..."
+                placeholder="e.g. Watches, Clothing, Belts"
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
-                className="flex-1 bg-slate-50 border border-gray-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
+                className="w-full bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
               />
               <button
                 type="submit"
-                disabled={creatingCategory || !newCategoryName.trim()}
-                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-indigo-600/10 flex items-center justify-center gap-2"
+                disabled={creatingCategory}
+                className="w-full py-2.5 bg-black hover:bg-gray-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2"
               >
                 {creatingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 Add Category
@@ -821,43 +1687,38 @@ export default function AdminDashboard() {
             </form>
           </div>
 
-          {/* Categories List */}
-          <div className="bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-sm">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Layers className="w-5 h-5 text-indigo-600" /> All Categories ({categories.length})
-              </h3>
+          <div className="md:col-span-2 bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-sm">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800">Categories List ({categories.length})</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-gray-100 text-xs font-semibold text-gray-450 uppercase">
+                  <tr className="bg-slate-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     <th className="p-4">Category Name</th>
-                    <th className="p-4">Slug / Code</th>
-                    <th className="p-4">Products</th>
-                    <th className="p-4 text-right">Actions</th>
+                    <th className="p-4">Slug (Code)</th>
+                    <th className="p-4">Items Count</th>
+                    <th className="p-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 font-semibold text-slate-700">
-                  {categories.map((cat) => {
-                    const count = products.filter((p) => p.category === cat.slug).length;
+                  {categories.map((c) => {
+                    const count = products.filter(p => p.category === c.slug).length;
                     return (
-                      <tr key={cat.slug} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-4 font-bold text-slate-900 flex items-center gap-2">
-                          <Tag className="w-4 h-4 text-indigo-500" />
-                          {cat.name}
-                        </td>
-                        <td className="p-4 font-mono text-xs text-gray-500">{cat.slug}</td>
-                        <td className="p-4">
-                          <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold">
-                            {count} {count === 1 ? 'bag' : 'bags'}
+                      <tr key={c.slug} className="hover:bg-slate-50/50">
+                        <td className="p-4 font-bold text-slate-900">{c.name}</td>
+                        <td className="p-4 text-xs text-gray-400 font-mono">{c.slug}</td>
+                        <td className="p-4 text-xs">
+                          <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-700 font-bold">
+                            {count} products
                           </span>
                         </td>
                         <td className="p-4 text-right">
                           <button
-                            onClick={() => handleDeleteCategory(cat.slug, cat.name)}
-                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-                            title="Delete category"
+                            onClick={() => handleDeleteCategory(c.slug, c.name)}
+                            disabled={count > 0}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={count > 0 ? "Cannot delete category in use" : "Delete category"}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -871,253 +1732,240 @@ export default function AdminDashboard() {
           </div>
         </div>
       ) : activeTab === 'analytics' ? (
-        /* Analytics panel */
-        (() => {
-          const totalStock = products.reduce((sum, p) => sum + Number(p.stock), 0);
-          const lowStockCount = products.filter((p) => Number(p.stock) <= 5 && Number(p.stock) > 0).length;
-          const outOfStockCount = products.filter((p) => Number(p.stock) === 0).length;
-          const avgPrice = products.length > 0
-            ? (products.reduce((sum, p) => sum + Number(p.price), 0) / products.length)
-            : 0;
-
-          const categoryStats = categories.map((cat) => {
-            const catProducts = products.filter((p) => p.category === cat.slug);
-            const catStock = catProducts.reduce((sum, p) => sum + Number(p.stock), 0);
-            const catRevenue = orders.reduce((sum, o) => sum + Number(o.total_amount), 0);
-            return {
-              key: cat.slug,
-              label: cat.name,
-              totalProducts: catProducts.length,
-              totalStock: catStock,
-              totalRevenue: catRevenue
-            };
-          });
-
-          return (
-            <div className="space-y-6">
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-sm flex items-center gap-4">
-                  <div className="p-4 bg-indigo-50 text-indigo-600 rounded-xl">
-                    <Package className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400 block uppercase font-medium">Total Stock Remaining</span>
-                    <span className="text-2xl font-bold text-slate-800">{totalStock}</span>
-                  </div>
-                </div>
-
-                <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-sm flex items-center gap-4">
-                  <div className="p-4 bg-amber-50 text-amber-600 rounded-xl">
-                    <AlertTriangle className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400 block uppercase font-medium">Low Stock Items</span>
-                    <span className="text-2xl font-bold text-slate-800">{lowStockCount}</span>
-                  </div>
-                </div>
-
-                <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-sm flex items-center gap-4">
-                  <div className="p-4 bg-rose-50 text-rose-600 rounded-xl">
-                    <PackageX className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400 block uppercase font-medium">Out of Stock Items</span>
-                    <span className="text-2xl font-bold text-slate-800">{outOfStockCount}</span>
-                  </div>
-                </div>
-
-                <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-sm flex items-center gap-4">
-                  <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl">
-                    <Tag className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400 block uppercase font-medium">Average Price</span>
-                    <span className="text-2xl font-bold text-slate-800">${avgPrice.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Category-wise Stats Table */}
-              <div className="bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-sm">
-                <div className="p-6 border-b border-gray-100 flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-indigo-600" />
-                  <h3 className="font-bold text-slate-800">Category-wise Stats</h3>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-gray-100 text-xs font-semibold text-gray-450 uppercase">
-                        <th className="p-4">Category</th>
-                        <th className="p-4">Total Products</th>
-                        <th className="p-4">Total Stock</th>
-                        <th className="p-4">Total Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50 font-semibold text-slate-700">
-                      {categoryStats.map((cat) => (
-                        <tr key={cat.key} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="p-4 font-bold text-slate-900">{cat.label}</td>
-                          <td className="p-4">{cat.totalProducts}</td>
-                          <td className="p-4">
-                            <span className={`text-xs ${cat.totalStock <= 5 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
-                              {cat.totalStock}
-                            </span>
-                          </td>
-                          <td className="p-4 text-indigo-650 font-bold">${cat.totalRevenue.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+        /* Analytics Tab */
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-gray-150 p-5 rounded-2xl">
+              <span className="text-xs text-gray-400 uppercase font-semibold">Delivered Revenue</span>
+              <p className="text-2xl font-black mt-1">PKR {Number(stats.totalSales).toLocaleString()}</p>
+              <span className="text-[10px] text-gray-400 block mt-0.5">Calculated only for Delivered orders</span>
             </div>
-          );
-        })()
+            <div className="bg-white border border-gray-150 p-5 rounded-2xl">
+              <span className="text-xs text-gray-400 uppercase font-semibold">Total Orders</span>
+              <p className="text-2xl font-black mt-1">{stats.totalOrders}</p>
+            </div>
+            <div className="bg-white border border-gray-150 p-5 rounded-2xl">
+              <span className="text-xs text-gray-400 uppercase font-semibold">Total Inventory</span>
+              <p className="text-2xl font-black mt-1">{products.length} Products</p>
+            </div>
+            <div className="bg-white border border-gray-150 p-5 rounded-2xl">
+              <span className="text-xs text-gray-400 uppercase font-semibold">Total Categories</span>
+              <p className="text-2xl font-black mt-1">{categories.length}</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-150 rounded-3xl p-6 shadow-sm">
+            <h4 className="font-bold text-slate-800 mb-4">Inventory by Category</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {categories.map((c) => {
+                const count = products.filter(p => p.category === c.slug).length;
+                return (
+                  <div key={c.slug} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="text-xs text-gray-400 uppercase font-bold">{c.name}</p>
+                    <p className="text-xl font-black mt-1">{count} items</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       ) : activeTab === 'social' ? (
-        <div className="bg-white border border-gray-200 shadow-sm p-6 sm:p-8 max-w-3xl space-y-6">
+        /* Store Details & Social Links Tab */
+        <div className="bg-white border border-gray-150 rounded-3xl p-6 sm:p-8 shadow-sm max-w-3xl space-y-6">
           <div>
-            <h2 className="text-xl font-black text-black tracking-tight flex items-center gap-2">
-              <Share2 className="w-5 h-5" /> Social Media Links & Store Contact Info
-            </h2>
+            <h3 className="font-bold text-lg text-slate-800">Store Details & Social Links</h3>
             <p className="text-xs text-gray-500 mt-1">
-              Configure your brand's social media channels and customer contact details. Changes are updated live in the website footer.
+              Configure contact info, WhatsApp number, and social profiles displayed across the New Mughal Collections footer.
             </p>
           </div>
 
-          <form onSubmit={handleSaveSocialLinks} className="space-y-6">
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 border-b border-gray-100 pb-2">
-                Social Profiles
-              </h3>
+          <form onSubmit={handleSaveSocialLinks} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">WhatsApp (Order Confirmation)</label>
+                <input
+                  type="text"
+                  value={socialLinks.whatsapp}
+                  onChange={(e) => setSocialLinks({ ...socialLinks, whatsapp: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none"
+                />
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">Instagram URL</label>
-                  <input
-                    type="url"
-                    value={socialLinks.instagram}
-                    onChange={(e) => setSocialLinks({ ...socialLinks, instagram: e.target.value })}
-                    placeholder="https://instagram.com/noorzan.pk"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Official Phone</label>
+                <input
+                  type="text"
+                  value={socialLinks.phone}
+                  onChange={(e) => setSocialLinks({ ...socialLinks, phone: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none"
+                />
+              </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">Facebook URL</label>
-                  <input
-                    type="url"
-                    value={socialLinks.facebook}
-                    onChange={(e) => setSocialLinks({ ...socialLinks, facebook: e.target.value })}
-                    placeholder="https://facebook.com/noorzan.pk"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Official Email</label>
+                <input
+                  type="email"
+                  value={socialLinks.email}
+                  onChange={(e) => setSocialLinks({ ...socialLinks, email: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none"
+                />
+              </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">TikTok URL</label>
-                  <input
-                    type="url"
-                    value={socialLinks.tiktok}
-                    onChange={(e) => setSocialLinks({ ...socialLinks, tiktok: e.target.value })}
-                    placeholder="https://tiktok.com/@noorzan.pk"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Instagram URL</label>
+                <input
+                  type="url"
+                  value={socialLinks.instagram}
+                  onChange={(e) => setSocialLinks({ ...socialLinks, instagram: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none"
+                />
+              </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">WhatsApp (Number or Link)</label>
-                  <input
-                    type="text"
-                    value={socialLinks.whatsapp}
-                    onChange={(e) => setSocialLinks({ ...socialLinks, whatsapp: e.target.value })}
-                    placeholder="+923004123432"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Facebook URL</label>
+                <input
+                  type="url"
+                  value={socialLinks.facebook}
+                  onChange={(e) => setSocialLinks({ ...socialLinks, facebook: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none"
+                />
+              </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">YouTube URL</label>
-                  <input
-                    type="url"
-                    value={socialLinks.youtube}
-                    onChange={(e) => setSocialLinks({ ...socialLinks, youtube: e.target.value })}
-                    placeholder="https://youtube.com/@noorzan"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">TikTok URL</label>
+                <input
+                  type="url"
+                  value={socialLinks.tiktok}
+                  onChange={(e) => setSocialLinks({ ...socialLinks, tiktok: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Physical Store Address</label>
+                <input
+                  type="text"
+                  value={socialLinks.address}
+                  onChange={(e) => setSocialLinks({ ...socialLinks, address: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none"
+                />
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 border-b border-gray-100 pb-2">
-                Store Contact Information
-              </h3>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">Official Phone Number</label>
-                  <input
-                    type="text"
-                    value={socialLinks.phone}
-                    onChange={(e) => setSocialLinks({ ...socialLinks, phone: e.target.value })}
-                    placeholder="+92300-4123432"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">Support Email</label>
-                  <input
-                    type="email"
-                    value={socialLinks.email}
-                    onChange={(e) => setSocialLinks({ ...socialLinks, email: e.target.value })}
-                    placeholder="officialnoorzan@gmail.com"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">Physical Store Address</label>
-                  <input
-                    type="text"
-                    value={socialLinks.address}
-                    onChange={(e) => setSocialLinks({ ...socialLinks, address: e.target.value })}
-                    placeholder="7-A Guldasht Town, Zarar Shaheed Road, Lahore, Pakistan"
-                    className="w-full px-3.5 py-2.5 border border-gray-300 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-gray-100 flex justify-end">
-              <button
-                type="submit"
-                disabled={savingSocial}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-black text-white hover:bg-gray-800 text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
-              >
-                {savingSocial ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save Changes Live
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={savingSocial}
+              className="px-6 py-2.5 bg-black hover:bg-gray-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition flex items-center gap-2"
+            >
+              {savingSocial ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save Store Info
+            </button>
           </form>
         </div>
       ) : null}
 
-      {/* Form Drawer Modal overlay */}
+      {/* FULL MESSAGE VIEW MODAL */}
+      {selectedMessage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedMessage(null);
+          }}
+        >
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-start border-b border-gray-100 pb-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Customer Inquiry</span>
+                <h3 className="text-xl font-bold text-slate-900">{selectedMessage.name}</h3>
+              </div>
+              <button
+                onClick={() => setSelectedMessage(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-2xl border border-gray-100">
+              <div>
+                <span className="text-gray-400 block font-semibold uppercase text-[10px]">Email Address</span>
+                <a href={`mailto:${selectedMessage.email}`} className="text-indigo-600 font-bold hover:underline">
+                  {selectedMessage.email}
+                </a>
+              </div>
+              <div>
+                <span className="text-gray-400 block font-semibold uppercase text-[10px]">Phone / WhatsApp</span>
+                <span className="font-bold text-slate-800">{selectedMessage.phone || 'Not provided'}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-gray-400 block font-semibold uppercase text-[10px]">Received Date & Time</span>
+                <span className="text-slate-600 font-medium">
+                  {new Date(selectedMessage.created_at).toLocaleString('en-PK', {
+                    dateStyle: 'full',
+                    timeStyle: 'short'
+                  })}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Message Content</span>
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm text-slate-800 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
+                {selectedMessage.message}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-100">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleToggleMessageRead(selectedMessage);
+                    setSelectedMessage({ ...selectedMessage, is_read: !selectedMessage.is_read });
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-xs font-bold uppercase rounded-xl transition"
+                >
+                  {selectedMessage.is_read ? 'Mark as Unread' : 'Mark as Read'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteMessage(selectedMessage.id)}
+                  className="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold uppercase rounded-xl transition"
+                >
+                  Delete
+                </button>
+              </div>
+
+              {selectedMessage.phone && (
+                <a
+                  href={`https://wa.me/${selectedMessage.phone.replace(/[^0-9]/g, '').startsWith('0') ? '92' + selectedMessage.phone.replace(/[^0-9]/g, '').substring(1) : selectedMessage.phone.replace(/[^0-9]/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase rounded-xl transition inline-flex items-center gap-1.5 shadow"
+                >
+                  <MessageCircle size={14} /> Reply on WhatsApp
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRODUCT ADD / EDIT MODAL */}
       {isFormOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setIsFormOpen(false); }}
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsFormOpen(false);
+          }}
         >
-          <div className="bg-white border border-gray-150 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             
-            {/* Header (always visible & shrink-0) */}
+            {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-              <h3 className="text-lg font-bold text-slate-900">
-                {editingProduct ? '✏️ Edit Bag details' : '➕ Add New Bag'}
-              </h3>
+              <h2 className="text-lg font-bold text-slate-800">
+                {editingProduct ? '✏️ Edit Product' : '➕ Add New Product'}
+              </h2>
               <button
                 type="button"
                 onClick={() => setIsFormOpen(false)}
@@ -1127,107 +1975,109 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            {/* Scrollable form body */}
+            {/* Modal Form Body */}
             <div className="overflow-y-auto px-6 py-5 space-y-4">
               <form id="admin-product-form" onSubmit={handleSaveProduct} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Bag Name</label>
+
+                {/* Product Name */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Product Name *</label>
                   <input
-                    type="text"
                     required
-                    placeholder="e.g. Leather Shoulder Tote"
+                    type="text"
+                    placeholder="e.g. Royal Chronograph Watch, Leather Backpack, Cotton Kurta"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
+                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:border-black"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Price ($)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      placeholder="e.g. 59.99"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Stock Qty</label>
-                    <input
-                      type="number"
-                      required
-                      placeholder="e.g. 15"
-                      value={stock}
-                      onChange={(e) => setStock(e.target.value)}
-                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Category Selection + Inline Creation */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Category</label>
+                {/* Category Selector with Inline Creation */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Category *</label>
                     <button
                       type="button"
                       onClick={() => setShowInlineCatInput(!showInlineCatInput)}
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition"
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
                     >
-                      {showInlineCatInput ? 'Cancel' : '+ New Category'}
+                      {showInlineCatInput ? 'Cancel' : '+ Add New Category'}
                     </button>
                   </div>
 
-                  {showInlineCatInput && (
-                    <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2">
-                      <span className="text-xs font-medium text-slate-700 block">Create new category:</span>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="e.g. Travel Duffel, Clutch..."
-                          value={inlineCatName}
-                          onChange={(e) => setInlineCatName(e.target.value)}
-                          className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleCreateInlineCat}
-                          disabled={creatingInlineCat || !inlineCatName.trim()}
-                          className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 disabled:bg-gray-300"
-                        >
-                          {creatingInlineCat ? 'Adding...' : 'Add'}
-                        </button>
-                      </div>
+                  {showInlineCatInput ? (
+                    <div className="flex gap-2 p-2 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                      <input
+                        type="text"
+                        placeholder="New category name (e.g. Watches, Clothing)"
+                        value={inlineCatName}
+                        onChange={(e) => setInlineCatName(e.target.value)}
+                        className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleInlineCreateCategory}
+                        disabled={creatingInlineCat}
+                        className="px-3 py-1.5 bg-black text-white rounded-lg text-xs font-bold"
+                      >
+                        {creatingInlineCat ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Create'}
+                      </button>
                     </div>
+                  ) : (
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:border-black capitalize"
+                    >
+                      {categories.map((c) => (
+                        <option key={c.slug} value={c.slug}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
                   )}
-
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.slug} value={c.slug}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
 
+                {/* Price & Stock */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Price (PKR) *</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="e.g. 8500"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:border-black"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Stock Qty *</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      placeholder="e.g. 15"
+                      value={stock}
+                      onChange={(e) => setStock(e.target.value)}
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:border-black"
+                    />
+                  </div>
+                </div>
+
+                {/* Image Input */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Product Image</label>
+                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Product Picture</label>
                   <div className="space-y-2">
                     <input
                       type="file"
                       accept="image/*"
                       onChange={(e) => setImageFile(e.target.files[0])}
-                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:outline-none file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:outline-none file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-black file:text-white"
                     />
-                    <div className="text-xs text-gray-400 text-center font-medium">OR</div>
+                    <div className="text-xs text-gray-400 text-center font-medium">OR PASTE URL</div>
                     <input
                       type="url"
                       placeholder="Paste image URL here..."
@@ -1241,18 +2091,40 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-slate-100 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={isFeatured}
-                      onChange={(e) => setIsFeatured(e.target.checked)}
-                      className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-600/20"
-                    />
-                    Feature on Home
-                  </label>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sort Order (Top = 1)</label>
+                {/* HOMEPAGE OPTIONS: FEATURE & HERO BACKGROUND */}
+                <div className="space-y-3 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Option 1: Feature on Home */}
+                    <label className="flex items-start gap-2.5 text-sm font-semibold text-slate-700 bg-slate-50 border border-gray-200 rounded-xl p-3 cursor-pointer hover:bg-slate-100 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={isFeatured}
+                        onChange={(e) => setIsFeatured(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 text-black rounded focus:ring-black"
+                      />
+                      <div>
+                        <span className="block text-xs font-bold text-slate-900">⭐ Feature in Home Collection</span>
+                        <span className="block text-[11px] text-gray-500 font-normal">Show in Bestsellers on Homepage</span>
+                      </div>
+                    </label>
+
+                    {/* Option 2: Set as Homepage Hero Background */}
+                    <label className="flex items-start gap-2.5 text-sm font-semibold text-slate-700 bg-amber-50/70 border border-amber-250 rounded-xl p-3 cursor-pointer hover:bg-amber-100/70 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={isHeroBg}
+                        onChange={(e) => setIsHeroBg(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 text-amber-600 rounded focus:ring-amber-500"
+                      />
+                      <div>
+                        <span className="block text-xs font-bold text-amber-950">🖼️ Set as Homepage Background</span>
+                        <span className="block text-[11px] text-amber-700 font-normal">Use this picture as main Home Hero</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Display Order (Top = 1)</label>
                     <input
                       type="number"
                       value={displayOrder}
@@ -1263,20 +2135,22 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                {/* Description */}
+                <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</label>
                   <textarea
                     rows="3"
-                    placeholder="Brief features and specifications..."
+                    placeholder="Brief features, materials, and specifications..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none"
                   ></textarea>
                 </div>
+
               </form>
             </div>
 
-            {/* Footer (always visible at bottom & shrink-0) */}
+            {/* Modal Footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
               <button
                 type="button"
@@ -1289,7 +2163,7 @@ export default function AdminDashboard() {
                 type="submit"
                 form="admin-product-form"
                 disabled={submittingProduct}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2"
+                className="px-6 py-2.5 bg-black hover:bg-gray-800 disabled:bg-gray-300 text-white text-sm font-bold rounded-xl transition-all shadow-md flex items-center gap-2"
               >
                 {submittingProduct ? (
                   <>

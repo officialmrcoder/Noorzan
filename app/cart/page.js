@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/context/ToastContext';
 import { Trash2, Minus, Plus, ShoppingBag, ArrowRight, ShieldCheck, Truck } from 'lucide-react';
+import { formatCategoryName } from '@/lib/categories';
 
 const FREE_SHIPPING_THRESHOLD = 3000;
 
@@ -58,7 +59,7 @@ export default function CartPage() {
         </div>
         <h1 className="text-2xl font-black uppercase tracking-wider text-black">Your Shopping Bag is Empty</h1>
         <p className="text-xs text-gray-500 mt-2 max-w-sm mx-auto">
-          Explore our latest collection of premium handbags, backpacks, and accessories.
+          Explore our latest collections of luxury watches, handcrafted bags, and stylish apparel.
         </p>
         <Link
           href="/products"
@@ -132,7 +133,11 @@ export default function CartPage() {
                     </Link>
                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                       {item.size && <span>Size: {item.size}</span>}
-                      {item.category && <span className="uppercase text-[10px] bg-gray-100 px-1.5 py-0.5">{item.category}</span>}
+                      {item.category && (
+                        <span className="uppercase text-[10px] font-bold tracking-wider bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">
+                          {formatCategoryName(item.category)}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm font-black text-black mt-2">
                       PKR {Number(item.price).toLocaleString()}

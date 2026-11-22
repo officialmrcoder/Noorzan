@@ -48,7 +48,7 @@ function OrderSuccessContent() {
           <div className="bg-gray-50 border border-gray-300 p-4 text-left space-y-2 text-xs">
             <h3 className="font-bold text-black uppercase tracking-wider">Payment Instructions</h3>
             <p className="text-gray-600 leading-relaxed">
-              Please transfer <strong className="text-black">PKR {Number(order.totalAmount).toLocaleString()}</strong> to JazzCash / EasyPaisa account <strong>0300-4123432 (Title: Noorzan Bags)</strong>. Please share your transfer screenshot on WhatsApp to confirm immediate dispatch.
+              Please transfer <strong className="text-black">PKR {Number(order.totalAmount).toLocaleString()}</strong> to JazzCash / EasyPaisa account <strong>0300-4123432 (Title: New Mughal Collections)</strong>. Please share your transfer screenshot on WhatsApp to confirm immediate dispatch.
             </p>
           </div>
         )}

@@ -85,10 +85,13 @@ const ProductsPageContent = memo(function ProductsPageContent() {
   }, [products, searchTerm, selectedCategory, priceRange, sortBy]);
 
   const categories = [
-    { name: 'All Bags', value: 'all' },
+    { name: 'All Collections', value: 'all' },
     ...(dynamicCategories.length > 0
       ? dynamicCategories.map((c) => ({ name: c.name, value: c.slug }))
       : [
+          { name: 'Watches', value: 'watches' },
+          { name: 'Bags & Luggage', value: 'bags' },
+          { name: 'Clothing & Apparel', value: 'clothing' },
           { name: 'Backpacks', value: 'backpack' },
           { name: 'Messenger Bags', value: 'messenger' },
           { name: 'Laptop Bags', value: 'laptop_bag' },
@@ -115,7 +118,7 @@ const ProductsPageContent = memo(function ProductsPageContent() {
               <p className="text-xs font-bold uppercase tracking-[0.25em] text-gray-400">Collections</p>
               <h1 className="text-3xl sm:text-4xl font-black text-black tracking-tight mt-1">
                 {selectedCategory === 'all'
-                  ? 'All Bags & Accessories'
+                  ? 'All Collections & Products'
                   : categories.find((c) => c.value === selectedCategory)?.name || 'Collection'}
               </h1>
             </div>
@@ -237,7 +240,7 @@ const ProductsPageContent = memo(function ProductsPageContent() {
 
             {/* Trust box */}
             <div className="p-4 bg-gray-50 border border-gray-100 text-xs text-gray-600 space-y-2">
-              <p className="font-bold text-black uppercase tracking-wider">Noorzan Guarantee</p>
+              <p className="font-bold text-black uppercase tracking-wider">New Mughal Collections Guarantee</p>
               <p>• Nationwide COD Available</p>
               <p>• 7-Day Easy Exchange</p>
               <p>• Premium Quality Checked</p>

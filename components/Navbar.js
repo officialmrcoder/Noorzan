@@ -166,8 +166,8 @@ const Navbar = memo(function Navbar() {
             </div>
 
             {/* CENTER — logo */}
-            <Link href="/" className="text-2xl font-black tracking-[0.25em] text-black select-none hover:opacity-85 transition-opacity">
-              NOORZAN
+            <Link href="/" className="text-xl sm:text-2xl font-black tracking-[0.18em] text-black select-none hover:opacity-85 transition-opacity text-center uppercase">
+              New Mughal Collections
             </Link>
 
             {/* RIGHT — icons */}
@@ -175,7 +175,7 @@ const Navbar = memo(function Navbar() {
               {/* Search button */}
               <button
                 onClick={() => setSearchOpen(true)}
-                aria-label="Search bags"
+                aria-label="Search collections"
                 className="text-gray-700 hover:text-black transition-colors p-1"
                 title="Search"
               >
@@ -251,8 +251,8 @@ const Navbar = memo(function Navbar() {
                     ) : (
                       <>
                         <div className="px-4 py-3 border-b border-gray-100">
-                          <p className="text-xs font-bold uppercase tracking-wider text-black">Welcome to Noorzan</p>
-                          <p className="text-[11px] text-gray-500 mt-0.5">Sign in to track orders & manage your bag collection</p>
+                          <p className="text-xs font-bold uppercase tracking-wider text-black">Welcome to New Mughal Collections</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">Sign in to track orders & explore all collections</p>
                         </div>
 
                         <div className="p-3 space-y-2">
@@ -317,8 +317,8 @@ const Navbar = memo(function Navbar() {
             </div>
 
             {/* CENTER — logo */}
-            <Link href="/" className="text-lg font-black tracking-[0.2em] text-black select-none">
-              NOORZAN
+            <Link href="/" className="text-sm font-black tracking-[0.15em] text-black select-none uppercase truncate max-w-[200px]">
+              New Mughal Collections
             </Link>
 
             {/* RIGHT — account & cart */}
@@ -358,7 +358,7 @@ const Navbar = memo(function Navbar() {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search bags by name, style, category..."
+                placeholder="Search watches, bags, clothing, collections..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full text-base font-medium text-black placeholder-gray-400 focus:outline-none"
@@ -380,7 +380,7 @@ const Navbar = memo(function Navbar() {
                 <div className="py-6 text-center">
                   <p className="text-xs uppercase tracking-widest text-gray-400 font-bold mb-3">Popular Searches</p>
                   <div className="flex flex-wrap justify-center gap-2">
-                    {['Backpack', 'Laptop Bag', 'Handbag', 'Travel Bag', 'Messenger'].map((tag) => (
+                    {['Watches', 'Bags', 'Clothing', 'Backpack', 'Handbag'].map((tag) => (
                       <button
                         key={tag}
                         onClick={() => setSearchQuery(tag)}
@@ -433,7 +433,7 @@ const Navbar = memo(function Navbar() {
                 </div>
               ) : !searchLoading ? (
                 <div className="py-8 text-center text-gray-500 text-sm">
-                  No bags found matching "<span className="font-semibold text-black">{searchQuery}</span>".
+                  No products found matching "<span className="font-semibold text-black">{searchQuery}</span>".
                 </div>
               ) : null}
             </div>
@@ -454,7 +454,7 @@ const Navbar = memo(function Navbar() {
           <div className="relative flex flex-col w-72 max-w-[85vw] h-full bg-black text-white shadow-2xl">
             {/* Close button */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
-              <span className="text-lg font-black tracking-widest">NOORZAN</span>
+              <span className="text-base font-black tracking-wider uppercase">New Mughal Collections</span>
               <button
                 onClick={() => setMobileOpen(false)}
                 className="text-white/70 hover:text-white transition-colors"

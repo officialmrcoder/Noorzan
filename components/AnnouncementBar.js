@@ -5,12 +5,13 @@ import { useState, useEffect } from 'react';
 const announcements = [
   "🚚 Free Shipping on Orders above PKR 3,000",
   "📦 Cash on Delivery Available Nationwide",
+  "👑 New Mughal Collections — Watches, Bags, Clothing & More",
   "🔄 Easy 7-Day Exchange Policy",
-  "⭐ 100% Authentic Premium Quality",
+  "⭐ 100% Authentic Premium Quality Guaranteed",
 ];
 
 const marqueeText =
-  "FREE CASH ON DELIVERY NATIONWIDE  •  EASY EXCHANGE  •  100% QUALITY GUARANTEE  •  PREMIUM BAGS  •  NATIONWIDE SHIPPING  •  FREE CASH ON DELIVERY NATIONWIDE  •  EASY EXCHANGE  •  100% QUALITY GUARANTEE  •  PREMIUM BAGS  •  NATIONWIDE SHIPPING  • ";
+  "NEW MUGHAL COLLECTIONS  •  WATCHES, BAGS, CLOTHING & ACCESSORIES  •  CASH ON DELIVERY NATIONWIDE  •  EASY 7-DAY EXCHANGE  •  100% QUALITY GUARANTEE  •  ROYAL CRAFTSMANSHIP  •  NATIONWIDE SHIPPING  • ";
 
 export default function AnnouncementBar() {
   const [current, setCurrent] = useState(0);

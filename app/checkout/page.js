@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { supabase } from '@/lib/supabase';
 import { isSupabaseConfigured } from '@/lib/mockData';
+import { formatCategoryName } from '@/lib/categories';
 import { CreditCard, Truck, Loader2, ArrowRight, ShoppingBag, ShieldCheck, Check } from 'lucide-react';
 import Link from 'next/link';
 
@@ -84,7 +85,7 @@ export default function CheckoutPage() {
         const orderData = {
           orderNumber,
           fullName,
-          email: email || 'guest@noorzan.pk',
+          email: email || 'guest@newmughalcollections.pk',
           phone,
           address,
           city,
@@ -384,7 +385,10 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-black truncate">{item.name}</p>
-                      <p className="text-[11px] text-gray-500">{item.size || 'Standard'}</p>
+                      <p className="text-[11px] text-gray-500">
+                        {item.category && <span className="text-indigo-700 font-semibold uppercase mr-1">{formatCategoryName(item.category)} •</span>}
+                        {item.size || 'Standard'}
+                      </p>
                     </div>
                     <span className="text-xs font-black text-black">
                       PKR {(item.price * item.quantity).toLocaleString()}

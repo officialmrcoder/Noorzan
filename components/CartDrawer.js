@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
 import { useCart } from '@/context/CartContext'
 import { useToast } from '@/context/ToastContext'
+import { formatCategoryName } from '@/lib/categories'
 
 const FREE_SHIPPING_THRESHOLD = 3000
 
@@ -137,8 +138,8 @@ export default function CartDrawer({ isOpen, onClose }) {
                       <span className="text-xs text-gray-500">Size: {item.size}</span>
                     )}
                     {item.category && (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                        {item.category}
+                      <span className="text-[11px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">
+                        {formatCategoryName(item.category)}
                       </span>
                     )}
                   </div>
