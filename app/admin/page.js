@@ -20,6 +20,72 @@ import {
   MessageSquare, Clock, Send, MessageCircle, Eye, CheckCircle2
 } from 'lucide-react';
 
+// Compress image before upload: resizes large camera photos to max width/height 1200, quality 0.82 (~100-200KB)
+const compressImage = async (file) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type?.startsWith('image/') || file.type === 'image/svg+xml') {
+      return resolve(file);
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            width = MAX_HEIGHT;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], (file.name || 'image').replace(/\.[^/.]+$/, "") + ".jpg", {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          0.82
+        );
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+};
+
+const fileToDataUrl = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function AdminDashboard() {
   const router = useRouter();
   const { user, isAdmin, loading } = useAuth();
@@ -554,27 +620,44 @@ export default function AdminDashboard() {
       // 1. Upload image file to Supabase storage if user selected a file
       if (imageFile) {
         if (isSupabaseConfigured()) {
-          const fileExt = (imageFile.name?.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-          const cleanFileName = `prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt || 'jpg'}`;
+          try {
+            // Compress image to ensure instant upload (~100-200KB instead of 5-10MB)
+            const processedFile = await compressImage(imageFile);
+            const fileExt = (processedFile.name?.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanFileName = `prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt || 'jpg'}`;
 
-          const { error: uploadError } = await supabase.storage
-            .from('images')
-            .upload(cleanFileName, imageFile, {
-              cacheControl: '3600',
-              upsert: true
-            });
+            const { error: uploadError } = await withTimeout(
+              supabase.storage
+                .from('images')
+                .upload(cleanFileName, processedFile, {
+                  cacheControl: '3600',
+                  upsert: true
+                }),
+              15000,
+              'Storage upload timed out'
+            );
 
-          if (uploadError) {
-            console.error('Storage upload error:', uploadError);
-            throw new Error('Image upload failed: ' + uploadError.message);
-          }
+            if (uploadError) {
+              console.warn('Storage upload error, using direct image fallback:', uploadError);
+              const fallbackUrl = await fileToDataUrl(processedFile);
+              finalImageUrl = fallbackUrl;
+            } else {
+              const { data: publicUrlData } = supabase.storage
+                .from('images')
+                .getPublicUrl(cleanFileName);
 
-          const { data: publicUrlData } = supabase.storage
-            .from('images')
-            .getPublicUrl(cleanFileName);
-
-          if (publicUrlData?.publicUrl) {
-            finalImageUrl = publicUrlData.publicUrl;
+              if (publicUrlData?.publicUrl) {
+                finalImageUrl = publicUrlData.publicUrl;
+              }
+            }
+          } catch (storageErr) {
+            console.warn('Storage process error, using fallback:', storageErr);
+            try {
+              const fallbackUrl = await fileToDataUrl(imageFile);
+              finalImageUrl = fallbackUrl;
+            } catch (fallbackErr) {
+              console.error('Fallback read error:', fallbackErr);
+            }
           }
         } else {
           // Mock mode: local object URL

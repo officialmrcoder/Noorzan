@@ -11,6 +11,72 @@ import { setHeroBackground, getHeroBackground } from "@/lib/settings";
 import { Loader2, Edit2, Trash2, Save, Plus, Tag, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 
+// Compress image before upload: resizes large camera photos to max width/height 1200, quality 0.82 (~100-200KB)
+const compressImage = async (file) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type?.startsWith('image/') || file.type === 'image/svg+xml') {
+      return resolve(file);
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            width = MAX_HEIGHT;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], (file.name || 'image').replace(/\.[^/.]+$/, "") + ".jpg", {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          0.82
+        );
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+};
+
+const fileToDataUrl = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function AdminProducts() {
   const { user, isAdmin, loading } = useAuth();
   const { showToast } = useToast();
@@ -34,6 +100,7 @@ export default function AdminProducts() {
   const [newCatName, setNewCatName] = useState("");
   const [creatingCat, setCreatingCat] = useState(false);
   const [currentHeroUrl, setCurrentHeroUrl] = useState("");
+  const [imageFile, setImageFile] = useState(null);
 
   // Guard
   useEffect(() => {
@@ -97,6 +164,7 @@ export default function AdminProducts() {
   };
 
   const openForm = (product = null) => {
+    setImageFile(null);
     if (product) {
       setEditingProduct(product);
       setForm({
@@ -145,18 +213,8 @@ export default function AdminProducts() {
   const handleSave = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    const payload = {
-      name: form.name,
-      price: Number(form.price),
-      category: form.category,
-      image_url:
-        form.image_url ||
-        "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600",
-      stock: Number(form.stock),
-      is_featured: form.is_featured,
-      is_hero_bg: form.is_hero_bg,
-      display_order: Number(form.display_order || 0),
-    };
+
+    let finalImageUrl = form.image_url;
 
     // Timeout helper (generous 25s for slow mobile networks)
     const withTimeout = (promise, ms = 25000, errorMsg = 'Database request timed out') => {
@@ -167,6 +225,63 @@ export default function AdminProducts() {
     };
 
     try {
+      if (imageFile) {
+        if (isSupabaseConfigured()) {
+          try {
+            const processedFile = await compressImage(imageFile);
+            const fileExt = (processedFile.name?.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanFileName = `prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt || 'jpg'}`;
+
+            const { error: uploadError } = await withTimeout(
+              supabase.storage
+                .from('images')
+                .upload(cleanFileName, processedFile, {
+                  cacheControl: '3600',
+                  upsert: true
+                }),
+              15000,
+              'Storage upload timed out'
+            );
+
+            if (uploadError) {
+              console.warn('Storage upload error, using direct image fallback:', uploadError);
+              const fallbackUrl = await fileToDataUrl(processedFile);
+              finalImageUrl = fallbackUrl;
+            } else {
+              const { data: publicUrlData } = supabase.storage
+                .from('images')
+                .getPublicUrl(cleanFileName);
+
+              if (publicUrlData?.publicUrl) {
+                finalImageUrl = publicUrlData.publicUrl;
+              }
+            }
+          } catch (storageErr) {
+            console.warn('Storage process error, using fallback:', storageErr);
+            try {
+              const fallbackUrl = await fileToDataUrl(imageFile);
+              finalImageUrl = fallbackUrl;
+            } catch (fallbackErr) {
+              console.error('Fallback read error:', fallbackErr);
+            }
+          }
+        } else {
+          finalImageUrl = URL.createObjectURL(imageFile);
+        }
+      }
+
+      const payload = {
+        name: form.name,
+        price: Number(form.price),
+        category: form.category,
+        image_url:
+          finalImageUrl ||
+          "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600",
+        stock: Number(form.stock),
+        is_featured: form.is_featured,
+        is_hero_bg: form.is_hero_bg,
+        display_order: Number(form.display_order || 0),
+      };
       let savedId = editingProduct?.id;
 
       if (!isSupabaseConfigured()) {
@@ -519,21 +634,36 @@ export default function AdminProducts() {
                   </select>
                 </div>
 
-                {/* Image URL */}
-                <div>
+                {/* Image Input */}
+                <div className="space-y-1.5">
                   <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">
-                    Image URL
+                    Product Picture
                   </label>
-                  <input
-                    placeholder="https://..."
-                    value={form.image_url}
-                    onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-                    className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
-                  />
-                  {form.image_url && (
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        setImageFile(file || null);
+                      }}
+                      className="w-full bg-slate-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:outline-none file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-black file:text-white"
+                    />
+                    <div className="text-xs text-gray-400 text-center font-medium">OR PASTE URL</div>
+                    <input
+                      placeholder="https://..."
+                      value={form.image_url}
+                      onChange={(e) => {
+                        setForm({ ...form, image_url: e.target.value });
+                        setImageFile(null);
+                      }}
+                      className="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black"
+                    />
+                  </div>
+                  {(form.image_url || imageFile) && (
                     <div className="mt-2 w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
                       <img
-                        src={form.image_url}
+                        src={imageFile ? URL.createObjectURL(imageFile) : form.image_url}
                         alt="preview"
                         className="w-full h-full object-cover"
                         onError={(e) => (e.target.style.display = "none")}
