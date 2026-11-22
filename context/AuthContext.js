@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
         .select('*')
         .eq('id', userId)
         .maybeSingle();
-      
+
       if (error) throw error;
       setProfile(data);
     } catch (err) {
@@ -27,13 +27,25 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    // Check active sessions and subscribe to auth changes
+    // On app load: check if this is a fresh browser session
+    // sessionStorage is cleared when the browser/tab is closed
+    const isNewSession = !sessionStorage.getItem('noorzan_session_active');
+
     const getInitialSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+
         if (session?.user) {
-          setUser(session.user);
-          await fetchProfile(session.user.id);
+          if (isNewSession) {
+            // Browser was closed and reopened — force logout for security
+            await supabase.auth.signOut();
+            setUser(null);
+            setProfile(null);
+          } else {
+            // Same tab/session still active — keep user logged in
+            setUser(session.user);
+            await fetchProfile(session.user.id);
+          }
         }
       } catch (err) {
         console.error('Error getting initial session:', err);
@@ -46,9 +58,12 @@ export const AuthProvider = ({ children }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
+        // Mark this browser session as active
+        sessionStorage.setItem('noorzan_session_active', 'true');
         setUser(session.user);
         await fetchProfile(session.user.id);
       } else {
+        sessionStorage.removeItem('noorzan_session_active');
         setUser(null);
         setProfile(null);
       }
@@ -74,7 +89,6 @@ export const AuthProvider = ({ children }) => {
         },
       });
       if (error) throw error;
-
       return { data, error: null };
     } catch (error) {
       return { data: null, error };
@@ -91,6 +105,8 @@ export const AuthProvider = ({ children }) => {
         password,
       });
       if (error) throw error;
+      // Mark session as active in sessionStorage (cleared on browser close)
+      sessionStorage.setItem('noorzan_session_active', 'true');
       return { data, error: null };
     } catch (error) {
       return { data: null, error };
@@ -102,6 +118,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setLoading(true);
     try {
+      sessionStorage.removeItem('noorzan_session_active');
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       setUser(null);

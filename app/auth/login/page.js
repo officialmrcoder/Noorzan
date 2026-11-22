@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { Mail, Lock, LogIn, ArrowRight, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +14,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -31,7 +32,7 @@ export default function LoginPage() {
       setSubmitting(false);
     } else {
       showToast('Welcome back! Sign in successful', 'success');
-      
+
       const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@example.com';
       const destination = email.toLowerCase() === adminEmail.toLowerCase() ? '/admin' : '/dashboard';
 
@@ -45,7 +46,7 @@ export default function LoginPage() {
   return (
     <div className="bg-white min-h-[80vh] flex items-center justify-center py-16 px-4">
       <div className="w-full max-w-md border border-gray-200 p-8 sm:p-10 space-y-6 shadow-sm">
-        
+
         {/* Header */}
         <div className="text-center space-y-1">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-gray-400">Account Access</p>
@@ -55,7 +56,7 @@ export default function LoginPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          
+
           {/* Email */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-black block">Email Address</label>
@@ -72,7 +73,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Password */}
+          {/* Password with show/hide toggle */}
           <div className="space-y-1.5">
             <div className="flex justify-between items-center">
               <label className="text-xs font-bold uppercase tracking-wider text-black block">Password</label>
@@ -85,14 +86,23 @@ export default function LoginPage() {
             </div>
             <div className="relative">
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 py-3 pl-10 pr-4 text-xs font-medium text-black placeholder-gray-400 focus:outline-none focus:border-black transition-colors"
+                className="w-full border border-gray-300 py-3 pl-10 pr-10 text-xs font-medium text-black placeholder-gray-400 focus:outline-none focus:border-black transition-colors"
               />
               <Lock size={15} className="text-gray-400 absolute left-3.5 top-3.5" />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-3 text-gray-400 hover:text-black transition-colors"
+                tabIndex={-1}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
             </div>
           </div>
 
