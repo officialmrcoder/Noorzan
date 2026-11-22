@@ -158,8 +158,8 @@ export default function AdminProducts() {
       display_order: Number(form.display_order || 0),
     };
 
-    // Timeout helper
-    const withTimeout = (promise, ms = 8000, errorMsg = 'Database request timed out') => {
+    // Timeout helper (generous 25s for slow mobile networks)
+    const withTimeout = (promise, ms = 25000, errorMsg = 'Database request timed out') => {
       return Promise.race([
         promise,
         new Promise((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms)),
@@ -202,7 +202,7 @@ export default function AdminProducts() {
         try {
           const { error } = await withTimeout(
             supabase.from("products").update(payload).eq("id", editingProduct.id),
-            8000,
+            25000,
             "Product update timed out"
           );
           updateError = error;
@@ -210,7 +210,7 @@ export default function AdminProducts() {
           const { is_hero_bg, ...safePayload } = payload;
           const { error } = await withTimeout(
             supabase.from("products").update(safePayload).eq("id", editingProduct.id),
-            8000,
+            25000,
             "Product update timed out"
           );
           updateError = error;
@@ -226,7 +226,7 @@ export default function AdminProducts() {
         try {
           const { data, error } = await withTimeout(
             supabase.from("products").insert([payload]).select(),
-            8000,
+            25000,
             "Product insert timed out"
           );
           if (error) throw error;
@@ -235,7 +235,7 @@ export default function AdminProducts() {
           const { is_hero_bg, ...safePayload } = payload;
           const { data, error } = await withTimeout(
             supabase.from("products").insert([safePayload]).select(),
-            8000,
+            25000,
             "Product insert timed out"
           );
           if (error) throw error;

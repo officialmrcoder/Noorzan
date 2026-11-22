@@ -542,8 +542,8 @@ export default function AdminDashboard() {
     setSubmittingProduct(true);
     let finalImageUrl = imageUrl;
 
-    // Timeout helper to avoid infinite hanging
-    const withTimeout = (promise, ms = 8000, errorMsg = 'Database request timed out') => {
+    // Timeout helper (generous 25s for slow mobile networks)
+    const withTimeout = (promise, ms = 25000, errorMsg = 'Database request timed out') => {
       return Promise.race([
         promise,
         new Promise((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms)),
@@ -553,22 +553,77 @@ export default function AdminDashboard() {
     try {
       // Process image file if uploaded
       if (imageFile) {
-        // 1. Convert to base64 Data URL as reliable instant fallback
-        const dataUrl = await new Promise((resolve) => {
+        // 1. Client-side compress image (reduces 5MB photo to ~90KB for ultra-fast upload)
+        let processedFile = imageFile;
+        try {
+          processedFile = await new Promise((resolve) => {
+            if (!imageFile.type?.startsWith('image/') || imageFile.type === 'image/svg+xml') {
+              resolve(imageFile);
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const img = new window.Image();
+              img.onload = () => {
+                let w = img.width;
+                let h = img.height;
+                const maxDim = 1000;
+                if (w > maxDim || h > maxDim) {
+                  if (w > h) {
+                    h = Math.round((h * maxDim) / w);
+                    w = maxDim;
+                  } else {
+                    w = Math.round((w * maxDim) / h);
+                    h = maxDim;
+                  }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                canvas.toBlob(
+                  (blob) => {
+                    if (!blob) {
+                      resolve(imageFile);
+                    } else {
+                      const compressed = new File([blob], imageFile.name.replace(/\.[^/.]+$/, '.jpg'), {
+                        type: 'image/jpeg',
+                        lastModified: Date.now(),
+                      });
+                      resolve(compressed);
+                    }
+                  },
+                  'image/jpeg',
+                  0.75
+                );
+              };
+              img.onerror = () => resolve(imageFile);
+              img.src = ev.target?.result;
+            };
+            reader.onerror = () => resolve(imageFile);
+            reader.readAsDataURL(imageFile);
+          });
+        } catch (compErr) {
+          console.warn('Image compression fallback:', compErr);
+          processedFile = imageFile;
+        }
+
+        // 2. Read compressed file as compact Data URL fallback
+        const compactDataUrl = await new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = (ev) => resolve(ev.target?.result || '');
           reader.onerror = () => resolve('');
-          reader.readAsDataURL(imageFile);
+          reader.readAsDataURL(processedFile);
         });
 
-        // 2. Try Supabase storage with 4s timeout; fallback to dataUrl
+        // 3. Upload small compressed file to Supabase storage (fast ~0.5s)
         if (isSupabaseConfigured()) {
           try {
-            const fileExt = imageFile.name.split('.').pop() || 'jpg';
-            const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+            const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.jpg`;
             const { error: uploadError } = await withTimeout(
-              supabase.storage.from('images').upload(fileName, imageFile),
-              4000,
+              supabase.storage.from('images').upload(fileName, processedFile, { contentType: 'image/jpeg' }),
+              12000,
               'Storage upload timed out'
             );
 
@@ -576,16 +631,17 @@ export default function AdminDashboard() {
               const { data: publicUrlData } = supabase.storage
                 .from('images')
                 .getPublicUrl(fileName);
-              finalImageUrl = publicUrlData?.publicUrl || dataUrl || finalImageUrl;
+              finalImageUrl = publicUrlData?.publicUrl || compactDataUrl || finalImageUrl;
             } else {
-              finalImageUrl = dataUrl || finalImageUrl;
+              console.warn('Storage upload error, using compressed data URL:', uploadError.message);
+              finalImageUrl = compactDataUrl || finalImageUrl;
             }
           } catch (storageErr) {
-            console.warn('Storage upload fallback to Data URL:', storageErr?.message);
-            finalImageUrl = dataUrl || finalImageUrl;
+            console.warn('Storage upload fallback to compressed Data URL:', storageErr?.message);
+            finalImageUrl = compactDataUrl || finalImageUrl;
           }
         } else {
-          finalImageUrl = dataUrl || finalImageUrl;
+          finalImageUrl = compactDataUrl || finalImageUrl;
         }
       }
 
@@ -642,7 +698,7 @@ export default function AdminDashboard() {
         return;
       }
 
-      // Supabase Mode
+      // Supabase Mode with generous 25s timeout
       if (editingProduct) {
         let updateError = null;
         try {
@@ -651,7 +707,7 @@ export default function AdminDashboard() {
               .from('products')
               .update(productPayload)
               .eq('id', editingProduct.id),
-            8000,
+            25000,
             'Product update timed out'
           );
           updateError = error;
@@ -662,7 +718,7 @@ export default function AdminDashboard() {
               .from('products')
               .update(safePayload)
               .eq('id', editingProduct.id),
-            8000,
+            25000,
             'Product update timed out'
           );
           updateError = error;
@@ -684,7 +740,7 @@ export default function AdminDashboard() {
               .from('products')
               .insert([productPayload])
               .select(),
-            8000,
+            25000,
             'Product insert timed out'
           );
           if (error) throw error;
@@ -696,7 +752,7 @@ export default function AdminDashboard() {
               .from('products')
               .insert([safePayload])
               .select(),
-            8000,
+            25000,
             'Product insert timed out'
           );
           if (error) throw error;
