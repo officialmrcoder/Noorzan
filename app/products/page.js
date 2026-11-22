@@ -42,7 +42,8 @@ const ProductsPageContent = memo(function ProductsPageContent() {
         } else {
           const { data, error } = await supabase.from('products').select('*');
           if (error) throw error;
-          prods = data && data.length > 0 ? data : SAMPLE_PRODUCTS;
+          // Use only real DB data — empty array = no products (don't fall back to mock)
+          prods = data || [];
         }
         setProducts(prods);
 
@@ -57,7 +58,7 @@ const ProductsPageContent = memo(function ProductsPageContent() {
         setDynamicCategories(cats);
       } catch (err) {
         console.error('Error loading products from Supabase:', err);
-        setProducts(SAMPLE_PRODUCTS);
+        setProducts([]);
       } finally {
         setLoading(false);
       }

@@ -74,14 +74,11 @@ export default function Home() {
           throw error;
         }
 
-        if (data && data.length > 0) {
-          setProducts(data);
-        } else {
-          setProducts(SAMPLE_PRODUCTS.slice(0, 12));
-        }
+        // Show only real DB products — empty means no products (don't fall back to mock)
+        setProducts(data || []);
       } catch (err) {
-        console.error("Failed to load products from Supabase, using mock data:", err);
-        setProducts(SAMPLE_PRODUCTS.slice(0, 12));
+        console.error("Failed to load products from Supabase:", err);
+        setProducts([]);
       } finally {
         setLoading(false);
       }
