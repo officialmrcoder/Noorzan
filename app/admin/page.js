@@ -478,7 +478,7 @@ export default function AdminDashboard() {
   };
 
   // Handle Category Deletion
-  const handleDeleteCategory = async (slug, catName) => {
+  const handleDeleteCategory = async (slug, catName, id = null) => {
     const isUsed = products.some((p) => p.category === slug);
     if (isUsed) {
       showToast(`Cannot delete "${catName}". Products currently use this category.`, 'error');
@@ -490,13 +490,12 @@ export default function AdminDashboard() {
     }
 
     try {
-      await removeCategory(slug);
-      const updated = await getCategories(products.filter((p) => p.category !== slug));
-      setCategories(updated.filter((c) => c.slug !== slug));
-      showToast(`Category "${catName}" deleted`, 'success');
+      await removeCategory(slug, id);
+      setCategories((prev) => prev.filter((c) => c.slug !== slug && (!id || c.id !== id)));
+      showToast(`Category "${catName}" deleted successfully!`, 'success');
     } catch (err) {
       console.error(err);
-      showToast('Failed to delete category', 'error');
+      showToast(err.message || 'Failed to delete category', 'error');
     }
   };
 
@@ -1763,7 +1762,7 @@ export default function AdminDashboard() {
                         </td>
                         <td className="p-4 text-right">
                           <button
-                            onClick={() => handleDeleteCategory(c.slug, c.name)}
+                            onClick={() => handleDeleteCategory(c.slug, c.name, c.id)}
                             disabled={count > 0}
                             className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
                             title={count > 0 ? "Cannot delete category in use" : "Delete category"}
