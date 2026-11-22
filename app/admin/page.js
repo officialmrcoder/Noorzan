@@ -551,97 +551,34 @@ export default function AdminDashboard() {
     };
 
     try {
-      // Process image file if uploaded
+      // 1. Upload image file to Supabase storage if user selected a file
       if (imageFile) {
-        // 1. Client-side compress image (reduces 5MB photo to ~90KB for ultra-fast upload)
-        let processedFile = imageFile;
-        try {
-          processedFile = await new Promise((resolve) => {
-            if (!imageFile.type?.startsWith('image/') || imageFile.type === 'image/svg+xml') {
-              resolve(imageFile);
-              return;
-            }
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const img = new window.Image();
-              img.onload = () => {
-                let w = img.width;
-                let h = img.height;
-                const maxDim = 1000;
-                if (w > maxDim || h > maxDim) {
-                  if (w > h) {
-                    h = Math.round((h * maxDim) / w);
-                    w = maxDim;
-                  } else {
-                    w = Math.round((w * maxDim) / h);
-                    h = maxDim;
-                  }
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = w;
-                canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, w, h);
-                canvas.toBlob(
-                  (blob) => {
-                    if (!blob) {
-                      resolve(imageFile);
-                    } else {
-                      const compressed = new File([blob], imageFile.name.replace(/\.[^/.]+$/, '.jpg'), {
-                        type: 'image/jpeg',
-                        lastModified: Date.now(),
-                      });
-                      resolve(compressed);
-                    }
-                  },
-                  'image/jpeg',
-                  0.75
-                );
-              };
-              img.onerror = () => resolve(imageFile);
-              img.src = ev.target?.result;
-            };
-            reader.onerror = () => resolve(imageFile);
-            reader.readAsDataURL(imageFile);
-          });
-        } catch (compErr) {
-          console.warn('Image compression fallback:', compErr);
-          processedFile = imageFile;
-        }
-
-        // 2. Read compressed file as compact Data URL fallback
-        const compactDataUrl = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (ev) => resolve(ev.target?.result || '');
-          reader.onerror = () => resolve('');
-          reader.readAsDataURL(processedFile);
-        });
-
-        // 3. Upload small compressed file to Supabase storage (fast ~0.5s)
         if (isSupabaseConfigured()) {
-          try {
-            const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.jpg`;
-            const { error: uploadError } = await withTimeout(
-              supabase.storage.from('images').upload(fileName, processedFile, { contentType: 'image/jpeg' }),
-              12000,
-              'Storage upload timed out'
-            );
+          const fileExt = (imageFile.name?.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanFileName = `prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt || 'jpg'}`;
 
-            if (!uploadError) {
-              const { data: publicUrlData } = supabase.storage
-                .from('images')
-                .getPublicUrl(fileName);
-              finalImageUrl = publicUrlData?.publicUrl || compactDataUrl || finalImageUrl;
-            } else {
-              console.warn('Storage upload error, using compressed data URL:', uploadError.message);
-              finalImageUrl = compactDataUrl || finalImageUrl;
-            }
-          } catch (storageErr) {
-            console.warn('Storage upload fallback to compressed Data URL:', storageErr?.message);
-            finalImageUrl = compactDataUrl || finalImageUrl;
+          const { error: uploadError } = await supabase.storage
+            .from('images')
+            .upload(cleanFileName, imageFile, {
+              cacheControl: '3600',
+              upsert: true
+            });
+
+          if (uploadError) {
+            console.error('Storage upload error:', uploadError);
+            throw new Error('Image upload failed: ' + uploadError.message);
+          }
+
+          const { data: publicUrlData } = supabase.storage
+            .from('images')
+            .getPublicUrl(cleanFileName);
+
+          if (publicUrlData?.publicUrl) {
+            finalImageUrl = publicUrlData.publicUrl;
           }
         } else {
-          finalImageUrl = compactDataUrl || finalImageUrl;
+          // Mock mode: local object URL
+          finalImageUrl = URL.createObjectURL(imageFile);
         }
       }
 
