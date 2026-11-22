@@ -158,6 +158,14 @@ export default function AdminProducts() {
       display_order: Number(form.display_order || 0),
     };
 
+    // Timeout helper
+    const withTimeout = (promise, ms = 8000, errorMsg = 'Database request timed out') => {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms)),
+      ]);
+    };
+
     try {
       let savedId = editingProduct?.id;
 
@@ -190,23 +198,25 @@ export default function AdminProducts() {
       }
 
       if (editingProduct) {
-        let updateErr = null;
+        let updateError = null;
         try {
-          const { error } = await supabase
-            .from("products")
-            .update(payload)
-            .eq("id", editingProduct.id);
-          updateErr = error;
+          const { error } = await withTimeout(
+            supabase.from("products").update(payload).eq("id", editingProduct.id),
+            8000,
+            "Product update timed out"
+          );
+          updateError = error;
         } catch (err) {
           const { is_hero_bg, ...safePayload } = payload;
-          const { error } = await supabase
-            .from("products")
-            .update(safePayload)
-            .eq("id", editingProduct.id);
-          updateErr = error;
+          const { error } = await withTimeout(
+            supabase.from("products").update(safePayload).eq("id", editingProduct.id),
+            8000,
+            "Product update timed out"
+          );
+          updateError = error;
         }
 
-        if (updateErr) throw updateErr;
+        if (updateError) throw updateError;
         setProducts((p) =>
           p.map((pr) => (pr.id === editingProduct.id ? { ...pr, ...payload } : pr))
         );
@@ -214,22 +224,22 @@ export default function AdminProducts() {
       } else {
         let inserted = null;
         try {
-          const { data, error } = await supabase
-            .from("products")
-            .insert([payload])
-            .select()
-            .single();
+          const { data, error } = await withTimeout(
+            supabase.from("products").insert([payload]).select(),
+            8000,
+            "Product insert timed out"
+          );
           if (error) throw error;
-          inserted = data;
+          inserted = data?.[0] || { id: `prod-${Date.now()}`, ...payload };
         } catch (err) {
           const { is_hero_bg, ...safePayload } = payload;
-          const { data, error } = await supabase
-            .from("products")
-            .insert([safePayload])
-            .select()
-            .single();
+          const { data, error } = await withTimeout(
+            supabase.from("products").insert([safePayload]).select(),
+            8000,
+            "Product insert timed out"
+          );
           if (error) throw error;
-          inserted = data;
+          inserted = data?.[0] || { id: `prod-${Date.now()}`, ...safePayload };
         }
         savedId = inserted?.id;
         setProducts((p) => [inserted, ...p]);
@@ -237,12 +247,16 @@ export default function AdminProducts() {
       }
 
       if (form.is_hero_bg) {
-        await setHeroBackground({
-          imageUrl: payload.image_url,
-          productId: savedId,
-          title: payload.name,
-        });
-        setCurrentHeroUrl(payload.image_url);
+        try {
+          await setHeroBackground({
+            imageUrl: payload.image_url,
+            productId: savedId,
+            title: payload.name,
+          });
+          setCurrentHeroUrl(payload.image_url);
+        } catch (heroErr) {
+          console.warn("Hero bg update warning:", heroErr);
+        }
       }
 
       setFormOpen(false);

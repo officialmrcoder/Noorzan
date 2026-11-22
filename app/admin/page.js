@@ -543,29 +543,57 @@ export default function AdminDashboard() {
     setSubmittingProduct(true);
     let finalImageUrl = imageUrl;
 
+    // Timeout helper to avoid infinite hanging
+    const withTimeout = (promise, ms = 8000, errorMsg = 'Database request timed out') => {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms)),
+      ]);
+    };
+
     try {
-      if (imageFile && isSupabaseConfigured()) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`;
+      // Process image file if uploaded
+      if (imageFile) {
+        // 1. Convert to base64 Data URL as reliable instant fallback
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target?.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(imageFile);
+        });
 
-        const { error: uploadError } = await supabase.storage
-          .from('images')
-          .upload(filePath, imageFile);
+        // 2. Try Supabase storage with 4s timeout; fallback to dataUrl
+        if (isSupabaseConfigured()) {
+          try {
+            const fileExt = imageFile.name.split('.').pop() || 'jpg';
+            const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+            const { error: uploadError } = await withTimeout(
+              supabase.storage.from('images').upload(fileName, imageFile),
+              4000,
+              'Storage upload timed out'
+            );
 
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from('images')
-          .getPublicUrl(filePath);
-
-        finalImageUrl = publicUrlData.publicUrl;
+            if (!uploadError) {
+              const { data: publicUrlData } = supabase.storage
+                .from('images')
+                .getPublicUrl(fileName);
+              finalImageUrl = publicUrlData?.publicUrl || dataUrl || finalImageUrl;
+            } else {
+              finalImageUrl = dataUrl || finalImageUrl;
+            }
+          } catch (storageErr) {
+            console.warn('Storage upload fallback to Data URL:', storageErr?.message);
+            finalImageUrl = dataUrl || finalImageUrl;
+          }
+        } else {
+          finalImageUrl = dataUrl || finalImageUrl;
+        }
       }
 
       const productPayload = {
         name,
         price: Number(price),
-        description,
+        description: description || '',
         category,
         image_url: finalImageUrl || 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=600',
         stock: Number(stock),
@@ -596,7 +624,6 @@ export default function AdminDashboard() {
           showToast('Product created (Mock)!', 'success');
         }
 
-        // If flagged as hero background, update hero background
         if (isHeroBg) {
           await setHeroBackground({
             imageUrl: productPayload.image_url,
@@ -620,17 +647,25 @@ export default function AdminDashboard() {
       if (editingProduct) {
         let updateError = null;
         try {
-          const { error } = await supabase
-            .from('products')
-            .update(productPayload)
-            .eq('id', editingProduct.id);
+          const { error } = await withTimeout(
+            supabase
+              .from('products')
+              .update(productPayload)
+              .eq('id', editingProduct.id),
+            8000,
+            'Product update timed out'
+          );
           updateError = error;
         } catch (e) {
           const { is_hero_bg, ...safePayload } = productPayload;
-          const { error } = await supabase
-            .from('products')
-            .update(safePayload)
-            .eq('id', editingProduct.id);
+          const { error } = await withTimeout(
+            supabase
+              .from('products')
+              .update(safePayload)
+              .eq('id', editingProduct.id),
+            8000,
+            'Product update timed out'
+          );
           updateError = error;
         }
 
@@ -645,22 +680,28 @@ export default function AdminDashboard() {
       } else {
         let insertedData = null;
         try {
-          const { data, error } = await supabase
-            .from('products')
-            .insert([productPayload])
-            .select()
-            .single();
+          const { data, error } = await withTimeout(
+            supabase
+              .from('products')
+              .insert([productPayload])
+              .select(),
+            8000,
+            'Product insert timed out'
+          );
           if (error) throw error;
-          insertedData = data;
+          insertedData = data?.[0] || { id: `prod-${Date.now()}`, ...productPayload };
         } catch (e) {
           const { is_hero_bg, ...safePayload } = productPayload;
-          const { data, error } = await supabase
-            .from('products')
-            .insert([safePayload])
-            .select()
-            .single();
+          const { data, error } = await withTimeout(
+            supabase
+              .from('products')
+              .insert([safePayload])
+              .select(),
+            8000,
+            'Product insert timed out'
+          );
           if (error) throw error;
-          insertedData = data;
+          insertedData = data?.[0] || { id: `prod-${Date.now()}`, ...safePayload };
         }
 
         savedProductId = insertedData?.id;
@@ -668,19 +709,23 @@ export default function AdminDashboard() {
         showToast('Product created successfully!', 'success');
       }
 
-      // If flagged as hero background, update hero background
+      // If flagged as hero background, update hero background safely
       if (isHeroBg) {
-        await setHeroBackground({
-          imageUrl: productPayload.image_url,
-          productId: savedProductId,
-          title: productPayload.name
-        });
-        setHeroBgSettings((prev) => ({
-          ...prev,
-          imageUrl: productPayload.image_url,
-          productId: savedProductId,
-          title: productPayload.name
-        }));
+        try {
+          await setHeroBackground({
+            imageUrl: productPayload.image_url,
+            productId: savedProductId,
+            title: productPayload.name
+          });
+          setHeroBgSettings((prev) => ({
+            ...prev,
+            imageUrl: productPayload.image_url,
+            productId: savedProductId,
+            title: productPayload.name
+          }));
+        } catch (heroErr) {
+          console.warn('Hero background sync warning:', heroErr);
+        }
       }
 
       setIsFormOpen(false);
